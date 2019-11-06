@@ -1,0 +1,65 @@
+oc new-project dmesg-test
+################################################################################
+oc create sa dmesgsa -n dmesg-test
+################################################################################
+oc adm policy add-scc-to-user privileged -z dmesgsa -n dmesg-test
+################################################################################
+echo '
+---
+apiVersion: apps.openshift.io/v1
+kind: DeploymentConfig
+metadata:
+  labels:
+    app: hello
+  name: hello
+  namespace: dmesg-test
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    app: hello
+    deploymentconfig: hello
+  strategy:
+    activeDeadlineSeconds: 21600
+    resources: {}
+    rollingParams:
+      intervalSeconds: 1
+      maxSurge: 25%
+      maxUnavailable: 25%
+      timeoutSeconds: 600
+      updatePeriodSeconds: 1
+    type: Rolling
+  template:
+    metadata:
+      annotations:
+        openshift.io/generated-by: OpenShiftNewApp
+      creationTimestamp: null
+      labels:
+        app: hello
+        deploymentconfig: hello
+    spec:
+      containers:
+      - image: image-registry.openshift-image-registry.svc:5000/openshift/httpd
+        imagePullPolicy: IfNotPresent
+        name: hello
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        - containerPort: 8443
+          protocol: TCP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        securityContext:
+          privileged: true
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      serviceAccount: dmesgsa
+      serviceAccountName: dmesgsa
+      terminationGracePeriodSeconds: 30
+  test: false
+  triggers:
+  - type: ConfigChange' | oc apply -f -
+
+
