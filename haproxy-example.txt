@@ -1,0 +1,94 @@
+global
+    log 127.0.0.1 local2
+    chroot /var/lib/haproxy
+    pidfile /var/run/haproxy.pid
+    maxconn 4000
+    user haproxy
+    group haproxy
+    daemon
+    stats socket /var/lib/haproxy/stats
+    ssl-default-bind-ciphers PROFILE=SYSTEM
+    ssl-default-server-ciphers PROFILE=SYSTEM
+
+defaults
+    mode http
+    log global
+    option httplog
+    option dontlognull
+    option http-server-close
+    option redispatch
+    retries 3
+    timeout http-request 10s
+    timeout queue 1m
+    timeout connect 10s
+    timeout client 1m
+    timeout server 1m
+    timeout http-keep-alive 10s
+    timeout check 10s
+    maxconn 3000
+
+frontend ocp4-kubernetes-api-server
+    mode tcp
+    option tcplog
+    bind api.home.io:6443
+    default_backend ocp4-kubernetes-api-server
+
+frontend ocp4-machine-config-server
+    mode tcp
+    option tcplog
+    bind api.home.io:22623
+    default_backend ocp4-machine-config-server
+
+frontend ocp4-router-http
+    mode tcp
+    option tcplog
+    bind apps.home.io:80
+    default_backend ocp4-router-http
+
+frontend ocp4-router-https
+    mode tcp
+    option tcplog
+    bind apps.home.io:443
+    default_backend ocp4-router-https
+
+backend ocp4-kubernetes-api-server
+    mode tcp
+    balance source
+#   server bootstrap bootstrap.home.io:6443 check
+    server master1 master1.home.io:6443 check
+    server master2 master2.home.io:6443 check
+    server master3 master3.home.io:6443 check
+
+backend ocp4-machine-config-server
+    mode tcp
+    balance source
+#   server bootstrap bootstrap.home.io:22623 check
+    server master1 master1.home.io:22623 check
+    server master2 master2.home.io:22623 check
+    server master3 master3.home.io:22623 check
+
+backend ocp4-router-http
+    mode tcp
+    server worker1 worker1.home.io:80 check
+    server worker2 worker2.home.io:80 check
+    server worker3 worker3.home.io:80 check
+    server worker4 worker4.home.io:80 check
+    server worker5 worker5.home.io:80 check
+
+backend ocp4-router-https
+    mode tcp
+    server worker1 worker1.home.io:443 check
+    server worker2 worker2.home.io:443 check
+    server worker3 worker3.home.io:443 check
+    server worker4 worker4.home.io:443 check
+    server worker5 worker5.home.io:443 check
+
+# optional stats section
+listen stats # Define a listen section called "stats"
+    bind :9000 # Listen on localhost:9000
+    mode http
+    stats enable  # Enable stats page
+    stats hide-version  # Hide HAProxy version
+    stats realm Haproxy\ Statistics  # Title text for popup window
+    stats uri /haproxy_stats  # Stats URI
+    stats auth username:password  # Authentication credentials
