@@ -1,0 +1,67 @@
+#!/bin/bash
+\cp /etc/haproxy/haproxy.cfg.masters /etc/haproxy/haproxy.cfg
+systemctl restart haproxy
+systemctl status haproxy
+
+echo '
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: registry-pv
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes:
+  - ReadWriteMany
+  nfs:
+    path: /registry
+    server: r720-a.home.io
+  persistentVolumeReclaimPolicy: Retain' | oc apply -f -
+
+wait_time=240 # seconds
+echo "Sleep for 4m before we patch the registry..."
+echo ""
+temp_cnt=${wait_time}
+while [[ ${temp_cnt} -gt 0 ]];
+do
+    printf "\r%2d second(s) remaining." ${temp_cnt}
+    sleep 1
+    ((temp_cnt--))
+done
+echo ""
+
+# oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"storage":{"emptyDir":{}}}}'
+oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"storage":{"pvc":{"claim":""}}}}'
+
+echo '
+---
+apiVersion: v1
+stringData:
+  htpasswd: jblaine:$apr1$WcfGzhlB$B.zE0rHAwe2/TAA7v/mJm0
+kind: Secret
+metadata:
+  name: htpass-secret
+  namespace: openshift-config
+type: Opaque' | oc apply -f - -n openshift-config
+
+echo '
+---
+apiVersion: config.openshift.io/v1
+kind: OAuth
+metadata:
+  name: cluster
+spec:
+  identityProviders:
+  - name: htpasswd
+    mappingMethod: claim
+    type: HTPasswd
+    htpasswd:
+      fileData:
+        name: htpass-secret' | oc apply -f -
+
+/root/ocp/openshift-install wait-for install-complete --dir=/root/ocp --log-level debug
+oc adm policy add-cluster-role-to-user cluster-admin jblaine
+oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":true}}' --type=merge
+oc delete secrets kubeadmin -n kube-system
+

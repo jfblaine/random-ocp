@@ -1,0 +1,21 @@
+#!/bin/bash
+cp /root/ocp/install-config.yaml.bak /root/ocp/install-config.yaml
+
+\rm -rf /root/ocp/auth/ /root/ocp/master.ign /root/ocp/worker.ign /root/ocp/bootstrap.ign /root/ocp/metadata.json /root/ocp/.openshift_install.log /var/lib/matchbox/ignition/*
+
+/root/ocp/openshift-install create manifests --dir=/root/ocp
+
+\cp -avr /root/ocp/cluster-scheduler-02-config.yml /root/ocp/manifests/
+# \cp -avr /root/ocp/cluster-network-03-config.yml /root/ocp/manifests/
+
+/root/ocp/openshift-install create ignition-configs --dir=/root/ocp
+
+\rm /root/ocp/.openshift_install.log /root/ocp/.openshift_install_state.json
+
+\cp /root/ocp/master.ign /root/ocp/worker.ign /root/ocp/bootstrap.ign /root/ocp/metadata.json /var/lib/matchbox/ignition/
+
+chown -R matchbox:matchbox /var/lib/matchbox/ignition/
+
+\cp /etc/haproxy/haproxy.cfg.bootstrap /etc/haproxy/haproxy.cfg
+systemctl restart haproxy
+systemctl status haproxy
