@@ -8,7 +8,7 @@ oc create secret generic image-registry-private-configuration-user  \
 
   storage:
      swift:
-       authURL: http://172.27.14.223:5000/v3
+       authURL: http://192.168.1.1:5000/v3 # get this from the console api page, or the *.rc file
        authVersion: "3"
        container: com-ocp4-registry # any name will work, container will create automatically
        domain: Default
