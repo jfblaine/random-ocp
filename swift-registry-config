@@ -1,0 +1,15 @@
+oc create secret generic image-registry-private-configuration-user  \
+--from-literal=REGISTRY_STORAGE_SWIFT_USERNAME=<username> \
+--from-literal=REGISTRY_STORAGE_SWIFT_PASSWORD=<password> \
+--namespace openshift-image-registry
+
+# oc delete secret image-registry-private-configuration-user \
+# --namespace openshift-image-registry
+
+  storage:
+     swift:
+       authURL: http://172.27.14.223:5000/v3
+       authVersion: "3"
+       container: com-ocp4-registry # any name will work, container will create automatically
+       domain: Default
+       regionName: regionOne
