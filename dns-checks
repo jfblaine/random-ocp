@@ -1,11 +1,12 @@
 export OCP_DOMAIN='.ocp4poc.example.com'
 
-# check bastion entry
+# check api entry
 ######################
 dig -x $(dig bastion${OCP_DOMAIN} +short) +short
 ######################
 # Expected Response:
-    bastion.ocp4poc.example.com.
+    api-int.home.io.
+    api.home.io.
     
 # check bootstrap entry
 ######################
