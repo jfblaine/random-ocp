@@ -1,18 +1,22 @@
 #!/bin/bash
-cp /root/ocp/install-config.yaml.bak /root/ocp/install-config.yaml
+\rm -rf /root/ocp/dir_install /var/lib/matchbox/ignition/*
 
-\rm -rf /root/ocp/auth/ /root/ocp/master.ign /root/ocp/worker.ign /root/ocp/bootstrap.ign /root/ocp/metadata.json /root/ocp/.openshift_install.log /var/lib/matchbox/ignition/*
+mkdir /root/ocp/dir_install
 
-/root/ocp/openshift-install create manifests --dir=/root/ocp
+cp /root/ocp/install-config.yaml.bak /root/ocp/dir_install/install-config.yaml
 
-\cp -avr /root/ocp/cluster-scheduler-02-config.yml /root/ocp/manifests/
-# \cp -avr /root/ocp/cluster-network-03-config.yml /root/ocp/manifests/
+openshift-install create manifests --dir=/root/ocp/dir_install/
 
-/root/ocp/openshift-install create ignition-configs --dir=/root/ocp
+\cp -avr /root/ocp/cluster-scheduler-02-config.yml /root/ocp/dir_install/manifests/
+# \cp -avr /root/ocp/cluster-network-03-config.yml /root/ocp/dir_install/manifests/
 
-\rm /root/ocp/.openshift_install.log /root/ocp/.openshift_install_state.json
+# read -p "Press enter to continue"
 
-\cp /root/ocp/master.ign /root/ocp/worker.ign /root/ocp/bootstrap.ign /root/ocp/metadata.json /var/lib/matchbox/ignition/
+openshift-install create ignition-configs --dir=/root/ocp/dir_install/
+
+\rm /root/ocp/dir_install/.openshift_install.log /root/ocp/dir_install/.openshift_install_state.json
+
+\cp /root/ocp/dir_install/master.ign /root/ocp/dir_install/worker.ign /root/ocp/dir_install/bootstrap.ign /var/lib/matchbox/ignition/
 
 chown -R matchbox:matchbox /var/lib/matchbox/ignition/
 
