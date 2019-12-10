@@ -3,6 +3,8 @@
 systemctl restart haproxy
 systemctl status haproxy
 
+export KUBECONFIG=/root/ocp/dir_install/auth/kubeconfig
+
 echo '
 ---
 apiVersion: v1
@@ -15,11 +17,12 @@ spec:
   accessModes:
   - ReadWriteMany
   nfs:
-    path: /registry
+    path: /vmstore/registry
     server: r720-a.home.io
   persistentVolumeReclaimPolicy: Retain' | oc apply -f -
 
-wait_time=240 # seconds
+# wait_time=120 # seconds
+wait_time=3 # seconds
 echo "Sleep for 4m before we patch the registry..."
 echo ""
 temp_cnt=${wait_time}
@@ -60,8 +63,7 @@ spec:
       fileData:
         name: htpass-secret' | oc apply -f -
 
-/root/ocp/openshift-install wait-for install-complete --dir=/root/ocp --log-level debug
+openshift-install wait-for install-complete --dir=/root/ocp/dir_install --log-level debug
 oc adm policy add-cluster-role-to-user cluster-admin jblaine
 oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":true}}' --type=merge
-oc delete secrets kubeadmin -n kube-system
-
+# oc delete secrets kubeadmin -n kube-system
