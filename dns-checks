@@ -2,7 +2,7 @@ export OCP_DOMAIN='.ocp4poc.example.com'
 
 # check api entry
 ######################
-dig -x $(dig bastion${OCP_DOMAIN} +short) +short
+dig -x $(dig api${OCP_DOMAIN} +short) +short
 ######################
 # Expected Response:
     api-int.home.io.
