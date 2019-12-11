@@ -24,7 +24,7 @@ dig lb${OCP_DOMAIN} +short
 
 # check wildcard entry
 ######################
-dig foo.apps.$OCP_DOMAIN +short
+dig foo.apps$OCP_DOMAIN +short
 ######################
 # Expected Response:
     lb-ext.ocp4poc.example.com.
