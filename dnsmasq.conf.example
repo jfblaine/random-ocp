@@ -1,3 +1,5 @@
+server=<recursive dns>
+
 address=/api.ocp4poc.example.com/172.27.14.229
 address=/api-int.ocp4poc.example.com/172.27.14.229
 address=/.apps.ocp4poc.example.com/172.27.14.229
