@@ -6,6 +6,8 @@ oc create secret generic image-registry-private-configuration-user  \
 # oc delete secret image-registry-private-configuration-user \
 # --namespace openshift-image-registry
 
+oc edit configs.imageregistry.operator.openshift.io cluster
+
   storage:
      swift:
        authURL: http://192.168.1.1:5000/v3 # get this from the console api page, or the *.rc file
