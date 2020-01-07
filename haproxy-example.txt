@@ -69,6 +69,7 @@ backend ocp4-machine-config-server
 
 backend ocp4-router-http
     mode tcp
+    balance source    
     server worker1 worker1.home.io:80 check
     server worker2 worker2.home.io:80 check
     server worker3 worker3.home.io:80 check
@@ -77,6 +78,7 @@ backend ocp4-router-http
 
 backend ocp4-router-https
     mode tcp
+    balance source    
     server worker1 worker1.home.io:443 check
     server worker2 worker2.home.io:443 check
     server worker3 worker3.home.io:443 check
