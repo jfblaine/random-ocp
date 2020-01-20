@@ -1,0 +1,27 @@
+# save as /etc/dnsmasq.d/openshift4-dnsmasq.conf
+
+192.168.54.1    bastion
+
+# api and api-int can be placed
+# on the same line as bastion
+# however listing seperately
+# to provide flexibility if an
+# external lb is used
+192.168.54.1    api
+192.168.54.1    api-int
+
+# wildcard
+192.168.54.1    .apps
+
+192.168.54.10   bootstrap
+192.168.54.11   master-0 etcd-0
+192.168.54.12   master-1 etcd-1
+192.168.54.13   master-2 etcd-2
+192.168.54.15   worker-0
+192.168.54.16   worker-1
+# 192.168.54.17   worker-2
+# 192.168.54.18   worker-3
+# 192.168.54.19   worker-4
+# 192.168.54.20   infra-0
+# 192.168.54.21   infra-1
+# 192.168.54.22   infra-2
