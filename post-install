@@ -3,26 +3,25 @@
 systemctl restart haproxy
 systemctl status haproxy
 
-export KUBECONFIG=/root/ocp/dir_install/auth/kubeconfig
+export KUBECONFIG=./dir_install/auth/kubeconfig
 
-echo '
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: registry-pv
-spec:
-  capacity:
-    storage: 100Gi
-  accessModes:
-  - ReadWriteMany
-  nfs:
-    path: /vmstore/registry
-    server: r720-a.home.io
-  persistentVolumeReclaimPolicy: Retain' | oc apply -f -
+# echo '
+# ---
+# apiVersion: v1
+# kind: PersistentVolume
+# metadata:
+  # name: registry-pv
+# spec:
+  # capacity:
+    # storage: 100Gi
+  # accessModes:
+  # - ReadWriteMany
+  # nfs:
+    # path: /vmstore/registry
+    # server: r720-a.home.io
+  # persistentVolumeReclaimPolicy: Retain' | oc apply -f -
 
-# wait_time=120 # seconds
-wait_time=3 # seconds
+wait_time=240 # seconds
 echo "Sleep for 4m before we patch the registry..."
 echo ""
 temp_cnt=${wait_time}
@@ -34,14 +33,23 @@ do
 done
 echo ""
 
-# oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"storage":{"emptyDir":{}}}}'
-oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"storage":{"pvc":{"claim":""}}}}'
+oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"storage":{"emptyDir":{}}}}'
+# oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"storage":{"pvc":{"claim":""}}}}'
+oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"managementState":"Managed"}}'
+
+# htpasswd -c -B -b htpasswd.users jblaine redhat
+# htpasswd -B -b htpasswd.users admin redhat
+# htpasswd -B -b htpasswd.users user1 redhat
+# cat htpasswd.users
 
 echo '
 ---
 apiVersion: v1
 stringData:
-  htpasswd: jblaine:$apr1$WcfGzhlB$B.zE0rHAwe2/TAA7v/mJm0
+  htpasswd: |-
+    jblaine:$2y$05$senPDD414Jwxnuq2gaK8pO/2JVxCIYN6VWXpz6Tv1yjRq23NfATiO
+    admin:$2y$05$IWGqLT7K/Y0L3qnTj48Q0O98qgbfkI6mgqsK3fOKTnMuNZFYmgnGG
+    user1:$2y$05$I8f0EaUvWJk70zZE9t0zJ..kELKKkZXqpH8K1OONDeLfEhL.Md.g2
 kind: Secret
 metadata:
   name: htpass-secret
@@ -66,4 +74,4 @@ spec:
 openshift-install wait-for install-complete --dir=/root/ocp/dir_install --log-level debug
 oc adm policy add-cluster-role-to-user cluster-admin jblaine
 oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":true}}' --type=merge
-# oc delete secrets kubeadmin -n kube-system
+oc delete secrets kubeadmin -n kube-system
