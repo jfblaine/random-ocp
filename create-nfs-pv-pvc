@@ -1,0 +1,55 @@
+mkdir /vmstore/registry
+chown nobody:nobody /vmstore/registry
+cat /etc/exports
+/vmstore/share02 *(rw,sync,no_wdelay,no_root_squash,insecure,anonuid=65534,anongid=65534)
+exportfs -rv
+exporting *:/vmstore/registry
+
+
+echo '
+---  
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-nfs-02
+spec:
+  capacity:
+    storage: 100Gi 
+  accessModes:
+    - ReadWriteMany 
+  persistentVolumeReclaimPolicy: Retain 
+  nfs: 
+    path: /vmstore/share02
+    server: r720-a.home.io 
+    readOnly: false' | oc apply -f -
+    
+echo '
+---      
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nfs-claim1
+spec:
+  accessModes:
+    - ReadWriteMany 
+  resources:
+    requests:
+      storage: 5Gi' | oc apply -f - -n jblaine
+
+# add to pod      
+    spec:
+      containers:
+      - image: <...>
+        imagePullPolicy: IfNotPresent
+        name: hello
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /var/nfs-share
+          name: mynfs
+      dnsPolicy: ClusterFirst
+      volumes:
+      - name: mynfs
+        persistentVolumeClaim:
+          claimName: nfs-claim1
