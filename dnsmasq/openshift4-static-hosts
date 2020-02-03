@@ -1,4 +1,4 @@
-# save as /etc/dnsmasq.d/openshift4-dnsmasq.conf
+# save as /etc/openshift4-static-hosts
 
 192.168.54.1    bastion
 
