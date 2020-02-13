@@ -6,7 +6,7 @@ global
     user haproxy
     group haproxy
     daemon
-    stats socket /var/lib/haproxy/stats
+    # stats socket /var/lib/haproxy/stats
     ssl-default-bind-ciphers PROFILE=SYSTEM
     ssl-default-server-ciphers PROFILE=SYSTEM
 
@@ -30,67 +30,57 @@ defaults
 frontend ocp4-kubernetes-api-server
     mode tcp
     option tcplog
-    bind api.home.io:6443
+    bind *:6443
     default_backend ocp4-kubernetes-api-server
 
 frontend ocp4-machine-config-server
     mode tcp
     option tcplog
-    bind api.home.io:22623
+    bind *:22623
     default_backend ocp4-machine-config-server
 
 frontend ocp4-router-http
     mode tcp
     option tcplog
-    bind apps.home.io:80
+    bind *:80
     default_backend ocp4-router-http
 
 frontend ocp4-router-https
     mode tcp
     option tcplog
-    bind apps.home.io:443
+    bind *:443
     default_backend ocp4-router-https
 
 backend ocp4-kubernetes-api-server
     mode tcp
     balance source
-#   server bootstrap bootstrap.home.io:6443 check
-    server master1 master1.home.io:6443 check
-    server master2 master2.home.io:6443 check
-    server master3 master3.home.io:6443 check
+#   server boostrap bootstrap.ocp4poc.example.com:6443 check
+    server master-0 master-0.ocp4poc.example.com:6443 check
+    server master-1 master-1.ocp4poc.example.com:6443 check
+    server master-2 master-2.ocp4poc.example.com:6443 check
 
 backend ocp4-machine-config-server
     mode tcp
     balance source
-#   server bootstrap bootstrap.home.io:22623 check
-    server master1 master1.home.io:22623 check
-    server master2 master2.home.io:22623 check
-    server master3 master3.home.io:22623 check
+#   server bootstrap bootstrap.ocp4poc.example.com:22623 check
+    server master-0 master-0.ocp4poc.example.com:22623 check
+    server master-1 master-1.ocp4poc.example.com:22623 check
+    server master-2 master-2.ocp4poc.example.com:22623 check
 
 backend ocp4-router-http
     mode tcp
-    balance source    
-    server worker1 worker1.home.io:80 check
-    server worker2 worker2.home.io:80 check
-    server worker3 worker3.home.io:80 check
-    server worker4 worker4.home.io:80 check
-    server worker5 worker5.home.io:80 check
+    balance source
+    server worker-0 worker-0.ocp4poc.example.com:80 check
+    server worker-1 worker-1.ocp4poc.example.com:80 check
+    server ocs-0 ocs-0.ocp4poc.example.com:80 check
+    server ocs-1 ocs-1.ocp4poc.example.com:80 check
+    server ocs-2 ocs-2.ocp4poc.example.com:80 check
 
 backend ocp4-router-https
     mode tcp
-    balance source    
-    server worker1 worker1.home.io:443 check
-    server worker2 worker2.home.io:443 check
-    server worker3 worker3.home.io:443 check
-    server worker4 worker4.home.io:443 check
-    server worker5 worker5.home.io:443 check
-
-# optional stats section
-listen stats # Define a listen section called "stats"
-    bind :9000 # Listen on localhost:9000
-    mode http
-    stats enable  # Enable stats page
-    stats hide-version  # Hide HAProxy version
-    stats realm Haproxy\ Statistics  # Title text for popup window
-    stats uri /haproxy_stats  # Stats URI
-    stats auth username:password  # Authentication credentials
+    balance source
+    server worker-0 worker-0.ocp4poc.example.com:443 check
+    server worker-1 worker-1.ocp4poc.example.com:443 check
+    server ocs-0 ocs-0.ocp4poc.example.com:443 check
+    server ocs-1 ocs-1.ocp4poc.example.com:443 check
+    server ocs-2 ocs-2.ocp4poc.example.com:443 check
