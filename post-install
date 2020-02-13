@@ -41,6 +41,7 @@ oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patc
 # htpasswd -B -b htpasswd.users admin redhat
 # htpasswd -B -b htpasswd.users user1 redhat
 # cat htpasswd.users
+# oc create secret generic htpass-secret --from-file=htpasswd=htpasswd.users -n openshift-config
 
 echo '
 ---
