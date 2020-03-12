@@ -10,9 +10,6 @@
 192.168.54.1    api
 192.168.54.1    api-int
 
-# wildcard
-192.168.54.1    .apps
-
 192.168.54.10   bootstrap
 192.168.54.11   master-0 etcd-0
 192.168.54.12   master-1 etcd-1
