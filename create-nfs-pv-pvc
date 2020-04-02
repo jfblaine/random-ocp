@@ -1,3 +1,21 @@
+mkdir /storage1
+chmod 0755 /storage1
+chown 36:36 /storage1
+vi /etc/exports
+
+/storage1    *(rw,sync,no_subtree_check,all_squash,anonuid=36,anongid=36)
+
+systemctl restart nfs
+
+exportfs -a
+
+mount -t nfs 192.168.1.74(IP address of host where NFS is
+	installed):/storage1/ /mnt/
+	umount /mnt/
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 mkdir /vmstore/registry
 chown nobody:nobody /vmstore/registry
 cat /etc/exports
