@@ -16,7 +16,6 @@
             "Resource": "arn:aws:s3:::noobaa-test"
         },
         {
-            "Sid": "VisualEditor1",
             "Effect": "Allow",
             "Action": [
                 "s3:PutObject",
