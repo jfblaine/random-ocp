@@ -1,112 +1,98 @@
-# be sure ocs nodes have 10vcpu and 32GB to begin
-# add one 10GB and one 100GB device to each ocs node
-# make certain each device has the same mapping on each node:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+!!!!!!!!!!!!!! Take etcd backup !!!!!!!!!!!!!!
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# label the ocs nodes
+OCP_DOMAIN=ocp4poc.example.com && \
+oc label node ocs-0.${OCP_DOMAIN} cluster.ocs.openshift.io/openshift-storage='' --overwrite && \
+oc label node ocs-1.${OCP_DOMAIN} cluster.ocs.openshift.io/openshift-storage='' --overwrite && \
+oc label node ocs-2.${OCP_DOMAIN} cluster.ocs.openshift.io/openshift-storage='' --overwrite && \
+oc adm taint nodes ocs-0.${OCP_DOMAIN} node.ocs.openshift.io/storage=true:NoSchedule && \
+oc adm taint nodes ocs-1.${OCP_DOMAIN} node.ocs.openshift.io/storage=true:NoSchedule && \
+oc adm taint nodes ocs-2.${OCP_DOMAIN} node.ocs.openshift.io/storage=true:NoSchedule
 
-for i in {1..3} ; do ssh -i ocp_id_rsh core@ocs-0.ocp4poc.example.com lsblk | egrep "^sdb.*|sdc.*$" ; done
+# oc get nodes -l cluster.ocs.openshift.io/openshift-storage -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}'
 
-sdb                            8:16   0  100G  0 disk
-sdc                            8:32   0   10G  0 disk
-sdb                            8:16   0  100G  0 disk
-sdc                            8:32   0   10G  0 disk
-sdb                            8:16   0  100G  0 disk
-sdc                            8:32   0   10G  0 disk
+# remove label if needed
+# OCP_DOMAIN=ocp4poc.example.com
+# oc label node ocs-3.${OCP_DOMAIN} cluster.ocs.openshift.io/openshift-storage- --overwrite
 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# to identify tainted nodes
+# oc get nodes -o go-template='{{range $item := .items}}{{with $nodename := $item.metadata.name}}{{range $taint := $item.spec.taints}}{{if and (eq $taint.key "node.ocs.openshift.io/storage") (eq $taint.effect "NoSchedule")}}{{printf "%s\n" $nodename}}{{end}}{{end}}{{end}}{{end}}'
 
-oc new-project local-storage
+# remove taint
+# oc adm taint nodes -l cluster.ocs.openshift.io/openshift-storage='' node.ocs.openshift.io/storage-
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-# Then install the local storage operator from console
-# install to the local-storage namespace only
-
-# point this to the 10G devices on each node
 echo '
 ---
-apiVersion: "local.storage.openshift.io/v1"
-kind: "LocalVolume"
-metadata:
-  name: "local-disks-fs"
-  namespace: "local-storage"
-spec:
-  nodeSelector:
-    nodeSelectorTerms:
-    - matchExpressions:
-        - key: kubernetes.io/hostname
-          operator: In
-          values:
-          - ocs-0.ocp4poc.example.com
-          - ocs-1.ocp4poc.example.com
-          - ocs-2.ocp4poc.example.com
-  storageClassDevices:
-    - storageClassName: "local-sc"
-      volumeMode: Filesystem
-      devicePaths:
-        - /dev/sdc' | oc apply -f -
-
-oc get pods -n local-storage
-
-# point this to the 100G devices on each node
-echo '
----        
-apiVersion: "local.storage.openshift.io/v1"
-kind: "LocalVolume"
-metadata:
-  name: "local-disks"
-  namespace: "local-storage"
-spec:
-  nodeSelector:
-    nodeSelectorTerms:
-    - matchExpressions:
-        - key: kubernetes.io/hostname
-          operator: In
-          values:
-          - ocs-0.ocp4poc.example.com
-          - ocs-1.ocp4poc.example.com
-          - ocs-2.ocp4poc.example.com          
-  storageClassDevices:
-    - storageClassName: "localblock-sc"
-      volumeMode: Block
-      devicePaths:
-        - /dev/sdb' | oc apply -f -
-
-oc get pods -n local-storage
-
-# make sure all PVs created:
-oc get pv
-NAME                CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM                                             STORAGECLASS    REASON   AGE
-local-pv-1c9da2b5   10Gi       RWO            Delete           Available                                                     local-sc                 6m14s
-local-pv-2cac0ba1   100Gi      RWO            Delete           Available                                                     localblock-sc            6m13s
-local-pv-7ecc1e34   10Gi       RWO            Delete           Available                                                     local-sc                 5m13s
-local-pv-b92e368e   100Gi      RWO            Delete           Available                                                     localblock-sc            6m12s
-local-pv-c1c5d794   100Gi      RWO            Delete           Available                                                     localblock-sc            6m13s
-local-pv-ca101f2    10Gi       RWO            Delete           Available                                                     local-sc                 6m15s
-
-echo '
----  
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: openshift-storage
+  name: local-storage
+---
+apiVersion: operators.coreos.com/v1alpha2
+kind: OperatorGroup
+metadata:
+  name: local-operator-group
+  namespace: local-storage
+spec:
+  targetNamespaces:
+    - local-storage
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: local-storage-operator
+  namespace: local-storage
+spec:
+  channel: "4.3" 
+  installPlanApproval: Automatic
+  name: local-storage-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace' | oc apply -f -
+
+# run ansible playbook to create the localvolume
+# based on device ids
+
+# create the openshift-storage namespace
+# install ocs operator
+
+echo '
+---
+apiVersion: v1
+kind: Namespace
+metadata:
   labels:
-    openshift.io/cluster-monitoring: "true"' | oc apply -f -
+    openshift.io/cluster-monitoring: "true"
+  name: openshift-storage
+spec: {}
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: openshift-storage-operatorgroup
+  namespace: openshift-storage
+spec:
+  serviceAccount:
+    metadata:
+      creationTimestamp: null
+  targetNamespaces:
+  - openshift-storage
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: ocs-subscription
+  namespace: openshift-storage
+spec:
+  channel: stable-4.3
+  name: ocs-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace' | oc apply -f -
 
-# Add the labels to the workers
-oc label node ocs-0.ocp4poc.example.com "cluster.ocs.openshift.io/openshift-storage=" --overwrite; \
-oc label node ocs-0.ocp4poc.example.com "topology.rook.io/rack=rack0" --overwrite; \
-oc label node ocs-1.ocp4poc.example.com "cluster.ocs.openshift.io/openshift-storage=" --overwrite; \
-oc label node ocs-1.ocp4poc.example.com "topology.rook.io/rack=rack1" --overwrite; \
-oc label node ocs-2.ocp4poc.example.com "cluster.ocs.openshift.io/openshift-storage=" --overwrite; \
-oc label node ocs-2.ocp4poc.example.com "topology.rook.io/rack=rack2" --overwrite
-
-# install the ocs operator from the console to the openshift-storage ns
-
-oc get pods -n openshift-storage
-
-NAME                                  READY   STATUS    RESTARTS   AGE
-aws-s3-provisioner-848f88b6cc-kgj5p   1/1     Running   0          3m7s
-noobaa-operator-7f69f57748-mz7k8      1/1     Running   0          3m12s
-ocs-operator-748cbc9d49-9hsm8         1/1     Running   0          3m12s
-rook-ceph-operator-75bbbd6d4f-gblkx   1/1     Running   0          3m12s
-
-
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# create the storagecluster
 echo '
 ---
 apiVersion: ocs.openshift.io/v1
@@ -116,15 +102,7 @@ metadata:
   namespace: openshift-storage
 spec:
   manageNodes: false
-  monPVCTemplate:
-    spec:
-      accessModes:
-      - ReadWriteOnce
-      resources:
-        requests:
-          storage: 10Gi
-      storageClassName: 'local-sc'
-      volumeMode: Filesystem
+  monDataDirHostPath: /var/lib/rook
   storageDeviceSets:
   - count: 1
     dataPVCTemplate:
@@ -133,76 +111,78 @@ spec:
         - ReadWriteOnce
         resources:
           requests:
-            storage: 100Gi
-        storageClassName: 'localblock-sc'
+            storage: 200Gi
+        storageClassName: localblock
         volumeMode: Block
     name: ocs-deviceset
     placement: {}
-    portable: true
+    portable: false
     replica: 3
-    resources: {}' | oc apply -f -
+    resources: {}' | oc apply -f - -n openshift-storage
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    
+# more information here
+# https://github.com/openshift/ocs-operator
 
-# check resources
-oc get pvc -n openshift-storage
-NAME                      STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS                  AGE
-db-noobaa-core-0          Bound    pvc-41f31b4f-da6d-43dc-9545-766855bfb88d   50Gi       RWO            ocs-storagecluster-ceph-rbd   3m
-ocs-deviceset-0-0-r7vrz   Bound    local-pv-c1c5d794                          100Gi      RWO            localblock-sc                 3m29s
-ocs-deviceset-1-0-4mhfc   Bound    local-pv-2cac0ba1                          100Gi      RWO            localblock-sc                 3m29s
-ocs-deviceset-2-0-wrvtq   Bound    local-pv-b92e368e                          100Gi      RWO            localblock-sc                 3m29s
-rook-ceph-mon-a           Bound    local-pv-1c9da2b5                          10Gi       RWO            local-sc                      6m1s
-rook-ceph-mon-b           Bound    local-pv-ca101f2                           10Gi       RWO            local-sc                      5m56s
-rook-ceph-mon-c           Bound    local-pv-7ecc1e34                          10Gi       RWO            local-sc                      5m51s
+oc patch storageclass ocs-storagecluster-cephfs -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}' && \
+oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"storage":{"pvc":{"claim":""}}}}' && \
+oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"managementState":"Managed"}}' && \
+sleep 15 && \
+oc patch storageclass ocs-storagecluster-cephfs -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
 
- oc get pv
-NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                                             STORAGECLASS                  REASON   AGE
-local-pv-1c9da2b5                          10Gi       RWO            Delete           Bound    openshift-storage/rook-ceph-mon-a                 local-sc                               34m
-local-pv-2cac0ba1                          100Gi      RWO            Delete           Bound    openshift-storage/ocs-deviceset-1-0-4mhfc         localblock-sc                          34m
-local-pv-7ecc1e34                          10Gi       RWO            Delete           Bound    openshift-storage/rook-ceph-mon-c                 local-sc                               33m
-local-pv-b92e368e                          100Gi      RWO            Delete           Bound    openshift-storage/ocs-deviceset-2-0-wrvtq         localblock-sc                          34m
-local-pv-c1c5d794                          100Gi      RWO            Delete           Bound    openshift-storage/ocs-deviceset-0-0-r7vrz         localblock-sc                          34m
-local-pv-ca101f2                           10Gi       RWO            Delete           Bound    openshift-storage/rook-ceph-mon-b                 local-sc                               34m
-pvc-41f31b4f-da6d-43dc-9545-766855bfb88d   50Gi       RWO            Delete           Bound    openshift-storage/db-noobaa-core-0                ocs-storagecluster-ceph-rbd            3m3s
-registry-pv                                100Gi      RWX            Retain           Bound    openshift-image-registry/image-registry-storage                                          68m
+oc get pvc -n openshift-image-registry
+oc get pod -n openshift-image-registry
 
-oc get pods
-NAME                                                              READY   STATUS      RESTARTS   AGE
-aws-s3-provisioner-848f88b6cc-kgj5p                               1/1     Running     0          16m
-csi-cephfsplugin-2m2dt                                            3/3     Running     0          12m
-csi-cephfsplugin-bbswf                                            3/3     Running     0          12m
-csi-cephfsplugin-cbgfg                                            3/3     Running     0          12m
-csi-cephfsplugin-hhrkk                                            3/3     Running     0          12m
-csi-cephfsplugin-provisioner-5cdcfcc86b-4rv67                     4/4     Running     0          12m
-csi-cephfsplugin-provisioner-5cdcfcc86b-nlptx                     4/4     Running     0          12m
-csi-cephfsplugin-w2ttf                                            3/3     Running     0          12m
-csi-rbdplugin-5mthv                                               3/3     Running     0          12m
-csi-rbdplugin-ljts2                                               3/3     Running     0          12m
-csi-rbdplugin-provisioner-8fdc8f955-9q2ml                         4/4     Running     0          12m
-csi-rbdplugin-provisioner-8fdc8f955-xhhpw                         4/4     Running     0          12m
-csi-rbdplugin-qghh7                                               3/3     Running     0          12m
-csi-rbdplugin-vqkw7                                               3/3     Running     0          12m
-csi-rbdplugin-w6zj2                                               3/3     Running     0          12m
-noobaa-core-0                                                     2/2     Running     0          3m39s
-noobaa-operator-7f69f57748-mz7k8                                  1/1     Running     0          16m
-ocs-operator-748cbc9d49-9hsm8                                     1/1     Running     0          16m
-rook-ceph-drain-canary-ocs-0.ocp4poc.example.com-f7b74778b4x4m5   1/1     Running     0          3m47s
-rook-ceph-drain-canary-ocs-1.ocp4poc.example.com-6dcc86fc7nj5q5   1/1     Running     0          3m46s
-rook-ceph-drain-canary-ocs-2.ocp4poc.example.com-dc65bdf7btxpnn   1/1     Running     0          3m46s
-rook-ceph-mds-ocs-storagecluster-cephfilesystem-a-95dbf6d596swn   1/1     Running     0          3m24s
-rook-ceph-mds-ocs-storagecluster-cephfilesystem-b-754c6cb7f66vd   1/1     Running     0          3m24s
-rook-ceph-mgr-a-64bb6cd55-xgstb                                   1/1     Running     0          4m33s
-rook-ceph-mon-a-554c7b6d8f-8cqr2                                  1/1     Running     0          5m54s
-rook-ceph-mon-b-77474dd766-rcpg2                                  1/1     Running     0          5m28s
-rook-ceph-mon-c-79c85f56dc-2bnwk                                  1/1     Running     0          5m
-rook-ceph-operator-75bbbd6d4f-gblkx                               1/1     Running     0          16m
-rook-ceph-osd-0-6fd659d7-zz7dl                                    1/1     Running     0          3m47s
-rook-ceph-osd-1-864f7f997c-vzcgg                                  1/1     Running     0          3m47s
-rook-ceph-osd-2-7df554c5df-gjgfv                                  1/1     Running     0          3m46s
-rook-ceph-osd-prepare-ocs-deviceset-0-0-r7vrz-q5p24               0/1     Completed   0          4m8s
-rook-ceph-osd-prepare-ocs-deviceset-1-0-4mhfc-zwk2z               0/1     Completed   0          4m7s
-rook-ceph-osd-prepare-ocs-deviceset-2-0-wrvtq-6w4pr               0/1     Completed   0          4m7s
-rook-ceph-rgw-ocs-storagecluster-cephobjectstore-a-5cddff4mnrl6   1/1     Running     0          3m2s
+# to create route for registry
+oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":true}}' --type=merge
 
-oc get route s3 -o jsonpath='{.spec.host}' -n openshift-storage
-s3-openshift-storage.apps.ocp4poc.example.com
+# to test registry storage
+yum module install container-tools
+OR
+yum install podman
 
-oc patch storageclass ocs-storagecluster-cephfs -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+export REGISTRY_URL=default-route-openshift-image-registry.apps.ocp4poc.example.com
+podman pull alpine
+podman login -u $(oc whoami) -p $(oc whoami -t) $REGISTRY_URL --tls-verify=false
+podman tag alpine $REGISTRY_URL/test/alpine
+podman push $REGISTRY_URL/test/alpine --tls-verify=false
+oc get is -n test
+
+oc label nodes ocs-0.ocp4poc.example.com node-role.kubernetes.io/infra='' &&\
+oc label nodes ocs-1.ocp4poc.example.com node-role.kubernetes.io/infra='' &&\
+oc label nodes ocs-2.ocp4poc.example.com node-role.kubernetes.io/infra=''
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Appendix:  Note it is necessary to add the toleration
+# to the localstorage CR if the taint was added
+# to the ocs nodes
+
+apiVersion: local.storage.openshift.io/v1
+kind: LocalVolume
+metadata:
+  name: local-block
+  namespace: local-storage
+spec:
+  nodeSelector:
+    nodeSelectorTerms:
+      - matchExpressions:
+          - key: cluster.ocs.openshift.io/openshift-storage
+            operator: In
+            values:
+              - ''
+###############################################
+  tolerations:
+    - key: node.ocs.openshift.io/storage
+      operator: Equal
+      value: "true"
+###############################################
+  storageClassDevices:
+    - storageClassName: localblock
+      volumeMode: Block
+      devicePaths:
+        - /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_481eb358-e212-4d0e-a
+        - /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_d7f4b1d6-a41e-4b4c-a
+        - /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_771a0ec4-0491-4289-a
+        
+
