@@ -24,6 +24,7 @@ oc adm taint nodes ocs-2.${OCP_DOMAIN} node.ocs.openshift.io/storage=true:NoSche
 # oc adm taint nodes -l cluster.ocs.openshift.io/openshift-storage='' node.ocs.openshift.io/storage-
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# create the local-storage ns and install the operator
 
 echo '
 ---
