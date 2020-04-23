@@ -22,6 +22,7 @@ oc adm taint nodes ocs-2.${OCP_DOMAIN} node.ocs.openshift.io/storage=true:NoSche
 
 # remove taint
 # oc adm taint nodes -l cluster.ocs.openshift.io/openshift-storage='' node.ocs.openshift.io/storage-
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 echo '
@@ -54,6 +55,10 @@ spec:
 
 # run ansible playbook to create the localvolume
 # based on device ids
+# Note it is necessary to add the toleration
+# to the localstorage CR if the taint was added
+# to the ocs nodes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # create the openshift-storage namespace
 # install ocs operator
@@ -145,44 +150,13 @@ export REGISTRY_URL=default-route-openshift-image-registry.apps.ocp4poc.example.
 podman pull alpine
 podman login -u $(oc whoami) -p $(oc whoami -t) $REGISTRY_URL --tls-verify=false
 podman tag alpine $REGISTRY_URL/test/alpine
+oc new-project test
 podman push $REGISTRY_URL/test/alpine --tls-verify=false
 oc get is -n test
+oc delete project test
 
 oc label nodes ocs-0.ocp4poc.example.com node-role.kubernetes.io/infra='' &&\
 oc label nodes ocs-1.ocp4poc.example.com node-role.kubernetes.io/infra='' &&\
 oc label nodes ocs-2.ocp4poc.example.com node-role.kubernetes.io/infra=''
 
-
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Appendix:  Note it is necessary to add the toleration
-# to the localstorage CR if the taint was added
-# to the ocs nodes
-
-apiVersion: local.storage.openshift.io/v1
-kind: LocalVolume
-metadata:
-  name: local-block
-  namespace: local-storage
-spec:
-  nodeSelector:
-    nodeSelectorTerms:
-      - matchExpressions:
-          - key: cluster.ocs.openshift.io/openshift-storage
-            operator: In
-            values:
-              - ''
-###############################################
-  tolerations:
-    - key: node.ocs.openshift.io/storage
-      operator: Equal
-      value: "true"
-###############################################
-  storageClassDevices:
-    - storageClassName: localblock
-      volumeMode: Block
-      devicePaths:
-        - /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_481eb358-e212-4d0e-a
-        - /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_d7f4b1d6-a41e-4b4c-a
-        - /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_771a0ec4-0491-4289-a
-        
-
