@@ -1,0 +1,29 @@
+#!/bin/bash
+\rm -rf /root/ocp43/dir_install /var/www/html/*
+
+mkdir /root/ocp43/dir_install
+
+cp /root/ocp43/install-config.yaml.bak /root/ocp43/dir_install/install-config.yaml
+
+openshift-install create manifests --dir=/root/ocp43/dir_install/
+
+\cp -avr /root/ocp43/cluster-scheduler-02-config.yml /root/ocp43/dir_install/manifests/
+
+openshift-install create ignition-configs --dir=/root/ocp43/dir_install/
+
+\rm /root/ocp43/dir_install/.openshift_install.log /root/ocp43/dir_install/.openshift_install_state.json
+
+\cp /root/ocp43/dir_install/bootstrap.ign /var/www/html/
+
+chmod 644 /var/www/html/bootstrap.ign
+
+\cp /root/ocp43/append-bootstrap.ign /root/ocp43/dir_install/
+
+for i in append-bootstrap master worker
+do
+  base64 -w0 < /root/ocp43/dir_install/$i.ign > /root/ocp43/dir_install/$i.64
+done
+
+\cp /etc/haproxy/haproxy.cfg.bootstrap /etc/haproxy/haproxy.cfg
+systemctl restart haproxy
+systemctl status haproxy
