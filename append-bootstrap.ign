@@ -1,0 +1,18 @@
+{
+  "ignition": {
+    "config": {
+      "append": [
+        {
+          "source": "http://10.111.25.3:8080/mod-bootstrap.ign", 
+          "verification": {}
+        }
+      ]
+    },
+    "timeouts": {},
+    "version": "2.1.0"
+  },
+  "networkd": {},
+  "passwd": {},
+  "storage": {},
+  "systemd": {}
+}
