@@ -6,7 +6,7 @@ global
     user haproxy
     group haproxy
     daemon
-    # stats socket /var/lib/haproxy/stats
+    stats socket /var/lib/haproxy/stats
     ssl-default-bind-ciphers PROFILE=SYSTEM
     ssl-default-server-ciphers PROFILE=SYSTEM
 
@@ -54,33 +54,27 @@ frontend ocp4-router-https
 backend ocp4-kubernetes-api-server
     mode tcp
     balance source
-#   server boostrap bootstrap.ocp4poc.example.com:6443 check
-    server master-0 master-0.ocp4poc.example.com:6443 check
-    server master-1 master-1.ocp4poc.example.com:6443 check
-    server master-2 master-2.ocp4poc.example.com:6443 check
+    server boostrap bootstrap.ocp4poc.example.com:6443 check init-addr last,libc,none
+    server master-0 master-0.ocp4poc.example.com:6443 check init-addr last,libc,none
+    server master-1 master-1.ocp4poc.example.com:6443 check init-addr last,libc,none
+    server master-2 master-2.ocp4poc.example.com:6443 check init-addr last,libc,none
 
 backend ocp4-machine-config-server
     mode tcp
     balance source
-#   server bootstrap bootstrap.ocp4poc.example.com:22623 check
-    server master-0 master-0.ocp4poc.example.com:22623 check
-    server master-1 master-1.ocp4poc.example.com:22623 check
-    server master-2 master-2.ocp4poc.example.com:22623 check
+    server bootstrap bootstrap.ocp4poc.example.com:22623 check init-addr last,libc,none
+    server master-0 master-0.ocp4poc.example.com:22623 check init-addr last,libc,none
+    server master-1 master-1.ocp4poc.example.com:22623 check init-addr last,libc,none
+    server master-2 master-2.ocp4poc.example.com:22623 check init-addr last,libc,none
 
 backend ocp4-router-http
     mode tcp
     balance source
-    server worker-0 worker-0.ocp4poc.example.com:80 check
-    server worker-1 worker-1.ocp4poc.example.com:80 check
-    server ocs-0 ocs-0.ocp4poc.example.com:80 check
-    server ocs-1 ocs-1.ocp4poc.example.com:80 check
-    server ocs-2 ocs-2.ocp4poc.example.com:80 check
+    server worker-0 worker-0.ocp4poc.example.com:80 check init-addr last,libc,none
+    server worker-1 worker-1.ocp4poc.example.com:80 check init-addr last,libc,none
 
 backend ocp4-router-https
     mode tcp
     balance source
-    server worker-0 worker-0.ocp4poc.example.com:443 check
-    server worker-1 worker-1.ocp4poc.example.com:443 check
-    server ocs-0 ocs-0.ocp4poc.example.com:443 check
-    server ocs-1 ocs-1.ocp4poc.example.com:443 check
-    server ocs-2 ocs-2.ocp4poc.example.com:443 check
+    server worker-0 worker-0.ocp4poc.example.com:443 check init-addr last,libc,none
+    server worker-1 worker-1.ocp4poc.example.com:443 check init-addr last,libc,none
