@@ -30,6 +30,17 @@ defaults
     # added in haproxy 1.7
     default-server init-addr last,libc,none
 
+resolvers mydns
+    nameserver dns1 127.0.0.1:53
+    # nameserver dns2 10.0.0.2:53
+    resolve_retries       3
+    timeout retry         1s
+    hold other           30s
+    hold refused         30s
+    hold nx              30s
+    hold timeout         30s
+    hold valid           10s
+
 frontend ocp4-kubernetes-api-server
     mode tcp
     option tcplog
