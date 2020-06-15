@@ -1,0 +1,88 @@
+openstack server create --image mod-rhcos --flavor OCP_Node \
+--user-data ~/jblaine/ignitions/append-bootstrap.ign \
+--network 52b06881-4831-4b5b-b77c-24e510f2b222 ocp4-bootstrap && \
+sleep 4 && \
+openstack server list | grep ocp4-bootstrap
+
+
+export server_name=master-0 && \
+openstack server create --image mod-rhcos --flavor OCP_Node \
+--user-data ~/jblaine/ignitions/mod-${server_name}.ign \
+--network 52b06881-4831-4b5b-b77c-24e510f2b222 --security-group ocp4-security-group \
+--boot-from-volume 300 ocp4-${server_name} && \
+export server_name=master-1 && \
+openstack server create --image mod-rhcos --flavor OCP_Node \
+--user-data ~/jblaine/ignitions/mod-${server_name}.ign \
+--network 52b06881-4831-4b5b-b77c-24e510f2b222 --security-group ocp4-security-group \
+--boot-from-volume 300 ocp4-${server_name} && \
+export server_name=master-2 && \
+openstack server create --image mod-rhcos --flavor OCP_Node \
+--user-data ~/jblaine/ignitions/mod-${server_name}.ign \
+--network 52b06881-4831-4b5b-b77c-24e510f2b222 --security-group ocp4-security-group \
+--boot-from-volume 300 ocp4-${server_name} && \
+sleep 4 && \
+openstack server list
+
+
+export server_name=worker-0 && \
+openstack server create --image mod-rhcos --flavor OCP_Node \
+--user-data ~/jblaine/ignitions/mod-${server_name}.ign \
+--network 52b06881-4831-4b5b-b77c-24e510f2b222 --security-group ocp4-security-group \
+--boot-from-volume 300 ocp4-${server_name} && \
+export server_name=worker-1 && \
+openstack server create --image mod-rhcos --flavor OCP_Node \
+--user-data ~/jblaine/ignitions/mod-${server_name}.ign \
+--network 52b06881-4831-4b5b-b77c-24e510f2b222 --security-group ocp4-security-group \
+--boot-from-volume 300 ocp4-${server_name} && \
+export server_name=worker-2 && \
+openstack server create --image mod-rhcos --flavor OCP_Node \
+--user-data ~/jblaine/ignitions/mod-${server_name}.ign \
+--network 52b06881-4831-4b5b-b77c-24e510f2b222 --security-group ocp4-security-group \
+--boot-from-volume 300 ocp4-${server_name} && \
+sleep 4 && \
+openstack server list
+
+
+export server_name=worker-3 && \
+openstack server create --image mod-rhcos --flavor OCP_Node \
+--user-data ~/jblaine/ignitions/mod-${server_name}.ign \
+--network 52b06881-4831-4b5b-b77c-24e510f2b222 --security-group ocp4-security-group \
+--boot-from-volume 300 ocp4-${server_name} && \
+export server_name=worker-4 && \
+openstack server create --image mod-rhcos --flavor OCP_Node \
+--user-data ~/jblaine/ignitions/mod-${server_name}.ign \
+--network 52b06881-4831-4b5b-b77c-24e510f2b222 --security-group ocp4-security-group \
+--boot-from-volume 300 ocp4-${server_name} && \
+sleep 4 && \
+openstack server list
+
+
+
+export server_name=ocs-0 && \
+openstack volume create --size 4000 ${server_name}-osd && \
+blkid1=$(openstack volume show ${server_name}-osd -f value -c id) && \
+openstack server create --image mod-rhcos --flavor OCS_Node \
+--user-data ~/jblaine/ignitions/mod-${server_name}.ign \
+--network 52b06881-4831-4b5b-b77c-24e510f2b222 \
+--security-group ocp4-security-group --boot-from-volume 300 \
+--block-device-mapping vdb=${blkid1}::: ocp4-${server_name} && \
+export server_name=ocs-1 && \
+openstack volume create --size 4000 ${server_name}-osd && \
+blkid1=$(openstack volume show ${server_name}-osd -f value -c id) && \
+openstack server create --image mod-rhcos --flavor OCS_Node \
+--user-data ~/jblaine/ignitions/mod-${server_name}.ign \
+--network 52b06881-4831-4b5b-b77c-24e510f2b222 \
+--security-group ocp4-security-group --boot-from-volume 300 \
+--block-device-mapping vdb=${blkid1}::: ocp4-${server_name} && \
+export server_name=ocs-2 && \
+openstack volume create --size 4000 ${server_name}-osd && \
+blkid1=$(openstack volume show ${server_name}-osd -f value -c id) && \
+openstack server create --image mod-rhcos --flavor OCS_Node \
+--user-data ~/jblaine/ignitions/mod-${server_name}.ign \
+--network 52b06881-4831-4b5b-b77c-24e510f2b222 \
+--security-group ocp4-security-group --boot-from-volume 300 \
+--block-device-mapping vdb=${blkid1}::: ocp4-${server_name} && \
+sleep 4 && \
+openstack server list
+
+openstack volume set 304622a9-e0a8-4f36-afc7-53dd2aa98baa --name ocp4-worker-0-root
