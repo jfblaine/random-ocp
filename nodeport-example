@@ -1,0 +1,94 @@
+Create a new app to get a pod going...
+[cloud-user@bastion ignitions]$ oc new-app --name hello -i httpd-24-rhel7
+--> Found image dc86154 (4 weeks old) in image stream "jblaine/httpd-24-rhel7" under tag "latest" for "httpd-24-rhel7"
+
+    Apache httpd 2.4
+    ----------------
+    Apache httpd 2.4 available as container, is a powerful, efficient, and extensible web server. Apache supports a variety of features, many implemented as compiled modules which extend the core functionality. These can range from server-side programming language support to authentication schemes. Virtual hosting allows one Apache installation to serve many different Web sites.
+
+    Tags: builder, httpd, httpd24
+
+    * This image will be deployed in deployment config "hello"
+    * Ports 8080/tcp, 8443/tcp will be load balanced by service "hello"
+      * Other containers can access this service through the hostname "hello"
+
+--> Creating resources ...
+    imagestreamtag.image.openshift.io "hello:latest" created
+    deploymentconfig.apps.openshift.io "hello" created
+    service "hello" created
+--> Success
+    Application is not exposed. You can expose services to the outside world by executing one or more of the commands below:
+     'oc expose svc/hello'
+    Run 'oc status' to view your app.
+
+This spins up an apache pod which listens on both 8080 and 8443 (http and https respectively)
+
+[cloud-user@bastion ignitions]$  oc get pods -o wide -l deploymentconfig=hello
+NAME            READY   STATUS    RESTARTS   AGE   IP            NODE                           NOMINATED NODE   READINESS GATES
+hello-1-7wqk5   1/1     Running   0          86s   10.128.6.15   worker-0.ocp4poc.example.com   <none>           <none>
+
+The new-app command will also automatically create a service with a ClusterIP:
+
+[cloud-user@bastion ignitions]$ oc get svc hello
+NAME    TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)             AGE
+hello   ClusterIP   172.30.81.176   <none>        8080/TCP,8443/TCP   2m18s
+
+This ClusterIP can be accessed from any pod in the cluster (barring netpolicies, etc).  I'm curling the ClusterIP from another pod in my ns here:
+
+[cloud-user@bastion ignitions]$ oc exec go-jhost-5c96d46cd4-29rl2 -- curl -s http://172.30.81.176:8080 | grep Apache | head -n1
+                <title>Test Page for the Apache HTTP Server on Red Hat Enterprise Linux</title>
+[cloud-user@bastion ignitions]$ oc exec go-jhost-5c96d46cd4-29rl2 -- curl -sk https://172.30.81.176:8443 | grep Apache | head -n1
+                <title>Test Page for the Apache HTTP Server on Red Hat Enterprise Linux</title>
+
+Now I have to expose this service to create a nodeport service:
+
+[cloud-user@bastion ignitions]$ oc expose dc/hello --type=NodePort --name=hello-nodeport
+service/hello-nodeport exposed
+
+[cloud-user@bastion ignitions]$ oc get svc hello-nodeport
+NAME             TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)                         AGE
+hello-nodeport   NodePort   172.30.252.49   <none>        8080:30629/TCP,8443:30169/TCP   38s
+
+Note, the ports here which have been assigned to 8080 and 8443 (30629, 30169):
+
+This allows me to curl the hello svc from outside the cluster through the ip of any node in the cluster (I only tested with the https port, you get the point):
+
+[cloud-user@bastion ignitions]$ oc get nodes
+NAME                           STATUS   ROLES    AGE     VERSION
+master-0.ocp4poc.example.com   Ready    master   5d17h   v1.16.2
+master-1.ocp4poc.example.com   Ready    master   5d17h   v1.16.2
+master-2.ocp4poc.example.com   Ready    master   5d17h   v1.16.2
+ocs-0.ocp4poc.example.com      Ready    worker   5d17h   v1.16.2
+ocs-1.ocp4poc.example.com      Ready    worker   5d17h   v1.16.2
+ocs-2.ocp4poc.example.com      Ready    worker   5d17h   v1.16.2
+worker-0.ocp4poc.example.com   Ready    worker   94m     v1.16.2
+worker-1.ocp4poc.example.com   Ready    worker   5d17h   v1.16.2
+worker-2.ocp4poc.example.com   Ready    worker   5d17h   v1.16.2
+worker-3.ocp4poc.example.com   Ready    worker   5d17h   v1.16.2
+worker-4.ocp4poc.example.com   Ready    worker   2d23h   v1.16.2
+worker-5.ocp4poc.example.com   Ready    worker   3h49m   v1.16.2
+
+[cloud-user@bastion ignitions]$ curl -sk https://master-0.ocp4poc.example.com:30169 | grep Apache | head -n1
+                <title>Test Page for the Apache HTTP Server on Red Hat Enterprise Linux</title>
+[cloud-user@bastion ignitions]$ curl -sk https://master-1.ocp4poc.example.com:30169 | grep Apache | head -n1
+                <title>Test Page for the Apache HTTP Server on Red Hat Enterprise Linux</title>
+[cloud-user@bastion ignitions]$ curl -sk https://master-2.ocp4poc.example.com:30169 | grep Apache | head -n1
+                <title>Test Page for the Apache HTTP Server on Red Hat Enterprise Linux</title>
+[cloud-user@bastion ignitions]$ curl -sk https://ocs-0.ocp4poc.example.com:30169 | grep Apache | head -n1
+                <title>Test Page for the Apache HTTP Server on Red Hat Enterprise Linux</title>
+[cloud-user@bastion ignitions]$ curl -sk https://ocs-1.ocp4poc.example.com:30169 | grep Apache | head -n1
+                <title>Test Page for the Apache HTTP Server on Red Hat Enterprise Linux</title>
+[cloud-user@bastion ignitions]$ curl -sk https://ocs-2.ocp4poc.example.com:30169 | grep Apache | head -n1
+                <title>Test Page for the Apache HTTP Server on Red Hat Enterprise Linux</title>
+[cloud-user@bastion ignitions]$ curl -sk https://worker-0.ocp4poc.example.com:30169 | grep Apache | head -n1
+                <title>Test Page for the Apache HTTP Server on Red Hat Enterprise Linux</title>
+[cloud-user@bastion ignitions]$ curl -sk https://worker-1.ocp4poc.example.com:30169 | grep Apache | head -n1
+                <title>Test Page for the Apache HTTP Server on Red Hat Enterprise Linux</title>
+[cloud-user@bastion ignitions]$ curl -sk https://worker-2.ocp4poc.example.com:30169 | grep Apache | head -n1
+                <title>Test Page for the Apache HTTP Server on Red Hat Enterprise Linux</title>
+[cloud-user@bastion ignitions]$ curl -sk https://worker-3.ocp4poc.example.com:30169 | grep Apache | head -n1
+                <title>Test Page for the Apache HTTP Server on Red Hat Enterprise Linux</title>
+[cloud-user@bastion ignitions]$ curl -sk https://worker-4.ocp4poc.example.com:30169 | grep Apache | head -n1
+                <title>Test Page for the Apache HTTP Server on Red Hat Enterprise Linux</title>
+[cloud-user@bastion ignitions]$ curl -sk https://worker-5.ocp4poc.example.com:30169 | grep Apache | head -n1
+                <title>Test Page for the Apache HTTP Server on Red Hat Enterprise Linux</title>
