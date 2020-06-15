@@ -1,0 +1,73 @@
+echo '
+---
+apiVersion: v1
+items:
+- apiVersion: operator.openshift.io/v1alpha1
+  kind: ImageContentSourcePolicy
+  metadata:
+    name: local-storage-repo
+  spec:
+    repositoryDigestMirrors:
+    - mirrors:
+      - bastion.ocp4poc.example.com:5000/storage-images
+      - quay.io/jblaine/ose-local-storage-operator
+      source: registry.redhat.io/openshift4/ose-local-storage-operator
+    - mirrors:
+      - bastion.ocp4poc.example.com:5000/storage-images
+      - quay.io/jblaine/ose-local-storage-static-provisioner
+      source: registry.redhat.io/openshift4/ose-local-storage-static-provisioner
+    - mirrors:
+      - bastion.ocp4poc.example.com:5000/storage-images
+      - quay.io/jblaine/ose-local-storage-diskmaker
+      source: registry.redhat.io/openshift4/ose-local-storage-diskmaker
+- apiVersion: operator.openshift.io/v1alpha1
+  kind: ImageContentSourcePolicy
+  metadata:
+    name: ocs-repo
+  spec:
+    repositoryDigestMirrors:
+    - mirrors:
+      - bastion.ocp4poc.example.com:5000/storage-images
+      - quay.io/jblaine/mcg-core-rhel8
+      source: registry.redhat.io/ocs4/mcg-core-rhel8
+    - mirrors:
+      - bastion.ocp4poc.example.com:5000/storage-images
+      - quay.io/jblaine/mcg-rhel8-operator
+      source: registry.redhat.io/ocs4/mcg-rhel8-operator
+    - mirrors:
+      - bastion.ocp4poc.example.com:5000/storage-images
+      - quay.io/jblaine/ocs-rhel8-operator
+      source: registry.redhat.io/ocs4/ocs-rhel8-operator
+    - mirrors:
+      - bastion.ocp4poc.example.com:5000/storage-images
+      - quay.io/jblaine/rook-ceph-rhel8-operator
+      source: registry.redhat.io/ocs4/rook-ceph-rhel8-operator
+    - mirrors:
+      - bastion.ocp4poc.example.com:5000/storage-images
+      - quay.io/jblaine/ose-csi-driver-registrar
+      source: registry.redhat.io/openshift4/ose-csi-driver-registrar
+    - mirrors:
+      - bastion.ocp4poc.example.com:5000/storage-images    
+      - quay.io/jblaine/ose-csi-external-attacher
+      source: registry.redhat.io/openshift4/ose-csi-external-attacher
+    - mirrors:
+      - bastion.ocp4poc.example.com:5000/storage-images
+      - quay.io/jblaine/ose-csi-external-provisioner-rhel7
+      source: registry.redhat.io/openshift4/ose-csi-external-provisioner-rhel7
+    - mirrors:
+      - bastion.ocp4poc.example.com:5000/storage-images
+      - quay.io/jblaine/ose-csi-external-resizer-rhel7
+      source: registry.redhat.io/openshift4/ose-csi-external-resizer-rhel7
+    - mirrors:
+      - bastion.ocp4poc.example.com:5000/storage-images
+      - quay.io/jblaine/rhceph-4-rhel8
+      source: registry.redhat.io/rhceph/rhceph-4-rhel8
+    - mirrors:
+      - bastion.ocp4poc.example.com:5000/storage-images
+      - quay.io/jblaine/mongodb-36-rhel7
+      source: registry.redhat.io/rhscl/mongodb-36-rhel7
+    - mirrors:
+      - bastion.ocp4poc.example.com:5000/storage-images
+      - quay.io/jblaine/cephcsi-rhel8
+      source: registry.redhat.io/ocs4/cephcsi-rhel8
+kind: List' | oc apply -f -
