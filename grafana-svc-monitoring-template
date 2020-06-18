@@ -1,0 +1,295 @@
+---
+kind: Template
+apiVersion: v1
+metadata:
+  name: grafana-user-workload-monitoring
+  annotations:
+    "openshift.io/display-name": Grafana-user-workload-monitoring
+    description: |
+      Grafana server for user workload monitoring
+    iconClass: fa fa-cogs
+    tags: "metrics,monitoring,grafana,prometheus"
+parameters:
+- description: External URL for the grafana-user-workload-monitoring route
+  name: ROUTE_URL
+  value: grafanauwm.apps.ocp4poc.example.com
+- description: The namespace to instantiate grafana under. Defaults to 'openshift-user-workload-monitoring'.
+  name: NAMESPACE
+  value: openshift-user-workload-monitoring
+- description: The session secret for the proxy
+  name: SESSION_SECRET
+  generate: expression
+  from: "[a-zA-Z0-9]{43}"
+objects:
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: grafana-user-workload-monitoring
+    namespace: ${NAMESPACE}
+  spec:
+    accessModes:
+    - ReadWriteMany
+    resources:
+      requests:
+        storage: 5Gi
+    storageClassName: ocs-storagecluster-cephfs
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    annotations:
+      serviceaccounts.openshift.io/oauth-redirectreference.grafana-user-workload-monitoring: '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"grafana-user-workload-monitoring"}}'
+    name: grafana-user-workload-monitoring
+    namespace: ${NAMESPACE}
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: grafana-user-workload-monitoring
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: grafana
+  subjects:
+  - kind: ServiceAccount
+    name: grafana-user-workload-monitoring
+    namespace: ${NAMESPACE}
+- apiVersion: v1
+  stringData:
+    thanos-datasource.yaml: |-
+      apiVersion: 1
+      datasources:
+        - name: thanos-querier
+          type: prometheus
+          access: proxy
+          url: https://thanos-querier.openshift-monitoring.svc:9091
+          basicAuth: true
+          basicAuthUser: internal
+          isDefault: true
+          jsonData:
+            tlsSkipVerify: true
+          secureJsonData:
+            basicAuthPassword: redhat
+          version: 1
+          editable: false
+  kind: Secret
+  metadata:
+    name: grafana-user-workload-monitoring-datasources
+    namespace: ${NAMESPACE}
+  type: Opaque
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: trusted-ca
+    namespace: ${NAMESPACE}
+    labels:
+      config.openshift.io/inject-trusted-cabundle: "true"
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: grafana-user-workload-monitoring-proxy
+    namespace: "${NAMESPACE}"
+  stringData:
+    session_secret: "${SESSION_SECRET}="
+- apiVersion: v1
+  data:
+    grafana.ini: |+
+      [users]
+      allow_sign_up = false
+      auto_assign_org = true
+      auto_assign_org_role = Admin
+      #auto_assign_org_role = Editor
+      #auto_assign_org_role = Viewer
+      [auth]
+      disable_login_form = true
+      disable_signout_menu = true
+      [auth.basic]
+      enabled = false
+      [auth.proxy]
+      auto_sign_up = true
+      enabled = true
+      header_name = X-Forwarded-User
+      [paths]
+      data = /var/lib/grafana
+      logs = /var/lib/grafana/logs
+      plugins = /var/lib/grafana/plugins
+      provisioning = /var/lib/grafana/provisioning
+      [security]
+      admin_user = root
+      cookie_secure = true
+      [server]
+      http_addr = 127.0.0.1
+      http_port = 3001
+  kind: ConfigMap
+  metadata:
+    name: grafana-user-workload-monitoring-config
+    namespace: ${NAMESPACE}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: grafana-user-workload-monitoring
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/scheme: https
+      service.alpha.openshift.io/serving-cert-secret-name: grafana-user-workload-monitoring-tls
+    namespace: "${NAMESPACE}"
+    labels:
+      metrics-infra: grafana-user-workload-monitoring
+      name: grafana-user-workload-monitoring
+  spec:
+    ports:
+    - name: https
+      port: 3030
+      protocol: TCP
+      targetPort: https
+    selector:
+      app: grafana-user-workload-monitoring
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    labels:
+      name: grafana-user-workload-monitoring
+    name: grafana-user-workload-monitoring
+    namespace: "${NAMESPACE}"
+  spec:
+    host: ${ROUTE_URL}
+    port:
+      targetPort: https
+    tls:
+      termination: reencrypt
+      insecureEdgeTerminationPolicy: Redirect
+    to:
+      kind: Service
+      name: grafana-user-workload-monitoring
+      weight: 100
+    wildcardPolicy: None
+- apiVersion: extensions/v1beta1
+  kind: Deployment
+  metadata:
+    labels:
+      app: grafana-user-workload-monitoring
+    name: grafana-user-workload-monitoring
+    namespace: ${NAMESPACE}
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: grafana-user-workload-monitoring
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        labels:
+          app: grafana-user-workload-monitoring
+      spec:
+        containers:
+        - args:
+          - -config=/etc/grafana/grafana.ini
+          image: quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:dfe906c762fa89bc002a81e73417c29153953e0b02131fb96fe3eb72e6f0fc37
+          imagePullPolicy: IfNotPresent
+          name: grafana
+          ports:
+          - containerPort: 3001
+            name: http
+            protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /var/lib/grafana
+            name: grafana-storage
+          - mountPath: /etc/grafana
+            name: grafana-config
+          - mountPath: /etc/grafana/provisioning/datasources
+            name: grafana-datasources
+        - args:
+          - -provider=openshift
+          - -https-address=:3030
+          - -http-address=
+          - -email-domain=*
+          - -upstream=http://localhost:3001
+          - '-openshift-sar={"resource": "namespaces", "verb": "get"}'
+          - '-openshift-delegate-urls={"/": {"resource": "namespaces", "verb": "get"}}'
+          - -tls-cert=/etc/tls/private/tls.crt
+          - -tls-key=/etc/tls/private/tls.key
+          - -client-secret-file=/var/run/secrets/kubernetes.io/serviceaccount/token
+          - -cookie-secret-file=/etc/proxy/secrets/session_secret
+          - -openshift-service-account=grafana-user-workload-monitoring
+          - -openshift-ca=/etc/pki/tls/cert.pem
+          - -openshift-ca=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          - -skip-auth-regex=^/metrics
+          env:
+          - name: HTTP_PROXY
+          - name: HTTPS_PROXY
+          - name: NO_PROXY
+          image: quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:31eec147bf5731906b1db98936deb83dcec9ea8b94421c85fe0c3d30eafd192b
+          imagePullPolicy: IfNotPresent
+          name: grafana-proxy
+          ports:
+          - containerPort: 3030
+            name: https
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: https
+            timeoutSeconds: 1
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /etc/tls/private
+            name: secret-grafana-user-workload-monitoring-tls
+          - mountPath: /etc/proxy/secrets
+            name: secret-grafana-user-workload-monitoring-proxy
+          - mountPath: /etc/pki/ca-trust/extracted/pem/
+            name: trusted-ca
+            readOnly: true
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          beta.kubernetes.io/os: linux
+        priorityClassName: system-node-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: grafana-user-workload-monitoring
+        serviceAccountName: grafana-user-workload-monitoring
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: grafana-storage
+          persistentVolumeClaim:
+            claimName: grafana-user-workload-monitoring
+        - name: secret-grafana-user-workload-monitoring-tls
+          secret:
+            defaultMode: 420
+            secretName: grafana-user-workload-monitoring-tls
+        - name: secret-grafana-user-workload-monitoring-proxy
+          secret:
+            defaultMode: 420
+            secretName: grafana-user-workload-monitoring-proxy
+        - configMap:
+            items:
+            - key: ca-bundle.crt
+              path: tls-ca-bundle.pem
+            name: trusted-ca
+            optional: true
+          name: trusted-ca
+        - configMap:
+            name: grafana-user-workload-monitoring-config
+          name: grafana-config
+        - secret:
+            secretName: grafana-user-workload-monitoring-datasources
+          name: grafana-datasources
