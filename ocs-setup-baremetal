@@ -5,10 +5,12 @@
 OCP_DOMAIN=ocp4poc.example.com && \
 oc label node ocs-0.${OCP_DOMAIN} cluster.ocs.openshift.io/openshift-storage='' --overwrite && \
 oc label node ocs-1.${OCP_DOMAIN} cluster.ocs.openshift.io/openshift-storage='' --overwrite && \
-oc label node ocs-2.${OCP_DOMAIN} cluster.ocs.openshift.io/openshift-storage='' --overwrite && \
-oc adm taint nodes ocs-0.${OCP_DOMAIN} node.ocs.openshift.io/storage=true:NoSchedule && \
-oc adm taint nodes ocs-1.${OCP_DOMAIN} node.ocs.openshift.io/storage=true:NoSchedule && \
-oc adm taint nodes ocs-2.${OCP_DOMAIN} node.ocs.openshift.io/storage=true:NoSchedule
+oc label node ocs-2.${OCP_DOMAIN} cluster.ocs.openshift.io/openshift-storage='' --overwrite 
+
+# && \
+# oc adm taint nodes ocs-0.${OCP_DOMAIN} node.ocs.openshift.io/storage=true:NoSchedule && \
+# oc adm taint nodes ocs-1.${OCP_DOMAIN} node.ocs.openshift.io/storage=true:NoSchedule && \
+# oc adm taint nodes ocs-2.${OCP_DOMAIN} node.ocs.openshift.io/storage=true:NoSchedule
 
 # oc get nodes -l cluster.ocs.openshift.io/openshift-storage -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}'
 
