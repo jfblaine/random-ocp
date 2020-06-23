@@ -1,0 +1,236 @@
+### OCP steps
+# https://docs.openshift.com/container-platform/4.4/installing/install_config/installing-restricted-networks-preparations.html
+podman run --name mirror-registry -p 5000:5000 \
+     -v /opt/registry/data:/var/lib/registry:z \
+     -v /opt/registry/auth:/auth:z \
+     -e "REGISTRY_AUTH=htpasswd" \
+     -e "REGISTRY_AUTH_HTPASSWD_REALM=Registry Realm" \
+     -e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd \
+     -v /opt/registry/certs:/certs:z \
+     -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/domain.crt \
+     -e REGISTRY_HTTP_TLS_KEY=/certs/domain.key \
+     -e REGISTRY_COMPATIBILITY_SCHEMA1_ENABLED=true \
+     -d docker.io/library/registry:2
+
+curl -u admin:redhat -k https://bastion.ocp4poc.example.com:5000/v2/_catalog 
+
+[root@bastion certs]# curl -u admin:redhat -k https://bastion.ocp4poc.example.com:5000/v2/_catalog
+{"repositories":[]}
+[root@bastion certs]# echo -n 'admin:redhat' | base64 -w0
+YWRtaW46cmVkaGF0
+
+export OCP_RELEASE=4.4.6-x86_64 &&\
+export LOCAL_REGISTRY='bastion.ocp4poc.example.com:5000' &&\
+export LOCAL_REPOSITORY='ocp446' &&\
+export PRODUCT_REPO='openshift-release-dev' &&\
+export LOCAL_SECRET_JSON='/root/ocp44/pull-secret-with-local.txt' &&\
+export RELEASE_NAME="ocp-release"
+
+oc adm -a ${LOCAL_SECRET_JSON} release mirror \
+     --from=quay.io/${PRODUCT_REPO}/${RELEASE_NAME}:${OCP_RELEASE} \
+     --to=${LOCAL_REGISTRY}/${LOCAL_REPOSITORY} \
+     --to-release-image=${LOCAL_REGISTRY}/${LOCAL_REPOSITORY}:${OCP_RELEASE}
+
+oc adm -a ${LOCAL_SECRET_JSON} release extract --command=openshift-install \
+"${LOCAL_REGISTRY}/${LOCAL_REPOSITORY}:${OCP_RELEASE}"
+
+###################################################
+# arvin link https://github.com/arvin-a/openshift-disconnected-operators
+# ocs addl considerations for disconnected https://access.redhat.com/articles/5172131
+
+git clone https://github.com/arvin-a/openshift-disconnected-operators.git
+
+local-storage-operator
+ocs-operator
+
+LOCAL_REGISTRY='bastion.ocp4poc.example.com:5000' && \
+LOCAL_SECRET_JSON='/root/ocp44/pull-secret-with-local.txt' && \
+OPERATOR_FILE='/root/gitstuff/openshift-disconnected-operators/offline-operator-list' && \
+/root/gitstuff/openshift-disconnected-operators/mirror-operator-catalogue.py \
+--catalog-version 1.0.0 \
+--authfile ${LOCAL_SECRET_JSON} \
+--registry-olm ${LOCAL_REGISTRY} \
+--registry-catalog ${LOCAL_REGISTRY} \
+--operator-file ${OPERATOR_FILE}
+
+oc patch OperatorHub cluster --type json -p \
+  '[{"op": "add", "path": "/spec/disableAllDefaultSources", "value": true}]'
+
+# ADD QUAY.IO to the mirrors in the olm-icsp.yaml
+# this is necessary to cover the noobaa image
+
+cat <<EOF >> ./publish/olm-icsp.yaml
+  - mirrors:
+    - ${LOCAL_REGISTRY}/noobaa
+    source: quay.io/noobaa
+  - mirrors:
+    - ${LOCAL_REGISTRY}/noobaa/pause
+    source: quay.io/noobaa/pause
+  - mirrors:
+    - ${LOCAL_REGISTRY}/noobaa/lib-bucket-catalog
+    source: quay.io/noobaa/lib-bucket-catalog
+EOF
+
+oc apply -f ./publish/rh-catalog-source.yaml && \
+  oc apply -f ./publish/olm-icsp.yaml
+
+# let nodes reboot ####################################
+
+OCP_DOMAIN=ocp4poc.example.com && \
+oc label node ocs-0.${OCP_DOMAIN} cluster.ocs.openshift.io/openshift-storage='' --overwrite && \
+oc label node ocs-1.${OCP_DOMAIN} cluster.ocs.openshift.io/openshift-storage='' --overwrite && \
+oc label node ocs-2.${OCP_DOMAIN} cluster.ocs.openshift.io/openshift-storage='' --overwrite
+
+echo '
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: local-storage
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: local-operator-group
+  namespace: local-storage
+spec:
+  targetNamespaces:
+    - local-storage
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: local-storage-operator
+  namespace: local-storage
+spec:
+  channel: "4.4"
+  installPlanApproval: Automatic
+  name: local-storage-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  startingCSV: local-storage-operator.4.4.0-202006080610' | oc apply -f -
+
+# create localstorage cr with ansible playbook
+git clone https://github.com/jfblaine/playbooks.git
+
+# need to copy some asst images
+LOCAL_REGISTRY='bastion.ocp4poc.example.com:5000' && \
+LOCAL_SECRET_JSON='/root/ocp44/pull-secret-with-local.txt' && \
+skopeo copy --all --authfile=${LOCAL_SECRET_JSON} \
+docker://quay.io/noobaa/lib-bucket-catalog@sha256:b9c9431735cf34017b4ecb2b334c3956b2a2322ce31ac88b29b1e4faf6c7fe7d \
+docker://${LOCAL_REGISTRY}/noobaa/lib-bucket-catalog && \
+skopeo copy --all --authfile=${LOCAL_SECRET_JSON} \
+docker://registry.redhat.io/ocs4/ocs-rhel8-operator@sha256:78b97049b194ebf4f72e29ac83b0d4f8aaa5659970691ff459bf19cfd661e93a \
+docker://${LOCAL_REGISTRY}/ocs4/ocs-rhel8-operator && \
+skopeo copy --all --authfile=${LOCAL_SECRET_JSON} \
+docker://quay.io/noobaa/pause@sha256:b31bfb4d0213f254d361e0079deaaebefa4f82ba7aa76ef82e90b4935ad5b105 \
+docker://${LOCAL_REGISTRY}/noobaa/pause && \
+skopeo copy --all --authfile=${LOCAL_SECRET_JSON} \
+docker://registry.redhat.io/openshift4/ose-csi-external-resizer-rhel7@sha256:e7302652fe3f698f8211742d08b2dcea9d77925de458eb30c20789e12ee7ae33 \
+docker://${LOCAL_REGISTRY}/openshift4/ose-csi-external-resizer-rhel7 && \
+skopeo copy --all --authfile=${LOCAL_SECRET_JSON} \
+docker://registry.redhat.io/ocs4/ocs-must-gather-rhel8@sha256:823e0fb90bb272997746eb4923463cef597cc74818cd9050f791b64df4f2c9b2 \
+docker://${LOCAL_REGISTRY}/ocs4/ocs-must-gather-rhel8
+
+##############################################################################
+
+echo '
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: lib-bucket-catalogsource
+  namespace: openshift-marketplace
+spec:
+  displayName: lib-bucket-provisioner
+  icon:
+    base64data: PHN2ZyBpZD0iTGF5ZXJfMSIgZGF0YS1uYW1lPSJMYXllciAxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxOTIgMTQ1Ij48ZGVmcz48c3R5bGU+LmNscy0xe2ZpbGw6I2UwMDt9PC9zdHlsZT48L2RlZnM+PHRpdGxlPlJlZEhhdC1Mb2dvLUhhdC1Db2xvcjwvdGl0bGU+PHBhdGggZD0iTTE1Ny43Nyw2Mi42MWExNCwxNCwwLDAsMSwuMzEsMy40MmMwLDE0Ljg4LTE4LjEsMTcuNDYtMzAuNjEsMTcuNDZDNzguODMsODMuNDksNDIuNTMsNTMuMjYsNDIuNTMsNDRhNi40Myw2LjQzLDAsMCwxLC4yMi0xLjk0bC0zLjY2LDkuMDZhMTguNDUsMTguNDUsMCwwLDAtMS41MSw3LjMzYzAsMTguMTEsNDEsNDUuNDgsODcuNzQsNDUuNDgsMjAuNjksMCwzNi40My03Ljc2LDM2LjQzLTIxLjc3LDAtMS4wOCwwLTEuOTQtMS43My0xMC4xM1oiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik0xMjcuNDcsODMuNDljMTIuNTEsMCwzMC42MS0yLjU4LDMwLjYxLTE3LjQ2YTE0LDE0LDAsMCwwLS4zMS0zLjQybC03LjQ1LTMyLjM2Yy0xLjcyLTcuMTItMy4yMy0xMC4zNS0xNS43My0xNi42QzEyNC44OSw4LjY5LDEwMy43Ni41LDk3LjUxLjUsOTEuNjkuNSw5MCw4LDgzLjA2LDhjLTYuNjgsMC0xMS42NC01LjYtMTcuODktNS42LTYsMC05LjkxLDQuMDktMTIuOTMsMTIuNSwwLDAtOC40MSwyMy43Mi05LjQ5LDI3LjE2QTYuNDMsNi40MywwLDAsMCw0Mi41Myw0NGMwLDkuMjIsMzYuMywzOS40NSw4NC45NCwzOS40NU0xNjAsNzIuMDdjMS43Myw4LjE5LDEuNzMsOS4wNSwxLjczLDEwLjEzLDAsMTQtMTUuNzQsMjEuNzctMzYuNDMsMjEuNzdDNzguNTQsMTA0LDM3LjU4LDc2LjYsMzcuNTgsNTguNDlhMTguNDUsMTguNDUsMCwwLDEsMS41MS03LjMzQzIyLjI3LDUyLC41LDU1LC41LDc0LjIyYzAsMzEuNDgsNzQuNTksNzAuMjgsMTMzLjY1LDcwLjI4LDQ1LjI4LDAsNTYuNy0yMC40OCw1Ni43LTM2LjY1LDAtMTIuNzItMTEtMjcuMTYtMzAuODMtMzUuNzgiLz48L3N2Zz4=
+    mediatype: image/svg+xml
+  image: quay.io/noobaa/lib-bucket-catalog@sha256:b9c9431735cf34017b4ecb2b334c3956b2a2322ce31ac88b29b1e4faf6c7fe7d
+  publisher: Red Hat
+  sourceType: grpc' | oc apply -f - -n openshift-marketplace
+
+echo '
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    openshift.io/cluster-monitoring: "true"
+  name: openshift-storage
+spec: {}
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: openshift-storage-operatorgroup
+  namespace: openshift-storage
+spec:
+  serviceAccount:
+    metadata:
+      creationTimestamp: null
+  targetNamespaces:
+  - openshift-storage
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: ocs-operator
+  namespace: openshift-storage
+spec:
+  channel: stable-4.4
+  installPlanApproval: Automatic
+  name: ocs-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  startingCSV: ocs-operator.v4.4.0' | oc apply -f -
+
+# patch image urls for pause with sha256
+
+jsonpatch='[{"op":"replace","path":"/spec/install/spec/deployments/0/spec/template/spec/containers/0/image",'
+jsonpatch+='"value":"quay.io/noobaa/pause@sha256:b31bfb4d0213f254d361e0079deaaebefa4f82ba7aa76ef82e90b4935ad5b105"}]' && \
+oc patch csv lib-bucket-provisioner.v1.0.0 --type='json' -p=${jsonpatch}
+
+jsonpatch='[{"op":"replace","path":"/spec/template/spec/containers/0/image",'
+jsonpatch+='"value":"quay.io/noobaa/pause@sha256:b31bfb4d0213f254d361e0079deaaebefa4f82ba7aa76ef82e90b4935ad5b105"}]' && \
+oc patch deploy lib-bucket-provisioner --type='json' -p=${jsonpatch} -n openshift-storage
+
+# create the storagecluster
+echo '
+---
+apiVersion: ocs.openshift.io/v1
+kind: StorageCluster
+metadata:
+  name: ocs-storagecluster
+  namespace: openshift-storage
+spec:
+  manageNodes: false
+  monDataDirHostPath: /var/lib/rook
+  storageDeviceSets:
+  - count: 1
+    dataPVCTemplate:
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 200Gi
+        storageClassName: localblock
+        volumeMode: Block
+    name: ocs-deviceset
+    placement: {}
+    portable: false
+    replica: 3
+    resources: {}' | oc apply -f - -n openshift-storage
+
+# patch registry to use fs storageclass
+oc patch storageclass ocs-storagecluster-cephfs -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}' && \
+oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"storage":{"pvc":{"claim":""}}}}' && \
+oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"managementState":"Managed"}}' && \
+sleep 15 && \
+oc patch storageclass ocs-storagecluster-cephfs -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+
+# to create a route for registry
+# oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":true}}' --type=merge
+
+# oc patch OCSInitialization ocsinit -n openshift-storage --type json --patch  '[{ "op": "replace", "path": "/spec/enableCephTools", "value": true }]'
