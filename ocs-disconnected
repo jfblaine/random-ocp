@@ -48,8 +48,8 @@ EOF
 
 LOCAL_REGISTRY='bastion.ocp4poc.example.com:5000' && \
 LOCAL_SECRET_JSON='/root/ocp44/pull-secret-with-local.txt' && \
-OPERATOR_FILE='/root/gitstuff/openshift-disconnected-operators/offline-operator-list' && \
-/root/gitstuff/openshift-disconnected-operators/mirror-operator-catalogue.py \
+OPERATOR_FILE='./offline-operator-list' && \
+./mirror-operator-catalogue.py \
 --catalog-version 1.0.0 \
 --authfile ${LOCAL_SECRET_JSON} \
 --registry-olm ${LOCAL_REGISTRY} \
