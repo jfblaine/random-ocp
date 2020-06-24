@@ -27,21 +27,24 @@ export LOCAL_SECRET_JSON='/root/ocp44/pull-secret-with-local.txt' &&\
 export RELEASE_NAME="ocp-release"
 
 oc adm -a ${LOCAL_SECRET_JSON} release mirror \
-     --from=quay.io/${PRODUCT_REPO}/${RELEASE_NAME}:${OCP_RELEASE} \
-     --to=${LOCAL_REGISTRY}/${LOCAL_REPOSITORY} \
-     --to-release-image=${LOCAL_REGISTRY}/${LOCAL_REPOSITORY}:${OCP_RELEASE}
+  --from=quay.io/${PRODUCT_REPO}/${RELEASE_NAME}:${OCP_RELEASE} \
+  --to=${LOCAL_REGISTRY}/${LOCAL_REPOSITORY} \
+  --to-release-image=${LOCAL_REGISTRY}/${LOCAL_REPOSITORY}:${OCP_RELEASE}
 
 oc adm -a ${LOCAL_SECRET_JSON} release extract --command=openshift-install \
-"${LOCAL_REGISTRY}/${LOCAL_REPOSITORY}:${OCP_RELEASE}"
+  "${LOCAL_REGISTRY}/${LOCAL_REPOSITORY}:${OCP_RELEASE}"
 
 ###################################################
 # arvin link https://github.com/arvin-a/openshift-disconnected-operators
 # ocs addl considerations for disconnected https://access.redhat.com/articles/5172131
 
-git clone https://github.com/arvin-a/openshift-disconnected-operators.git
+git clone https://github.com/arvin-a/openshift-disconnected-operators.git && \
+  cd openshift-disconnected-operators
 
+cat <<EOF > ./offline-operator-list
 local-storage-operator
 ocs-operator
+EOF
 
 LOCAL_REGISTRY='bastion.ocp4poc.example.com:5000' && \
 LOCAL_SECRET_JSON='/root/ocp44/pull-secret-with-local.txt' && \
@@ -52,6 +55,25 @@ OPERATOR_FILE='/root/gitstuff/openshift-disconnected-operators/offline-operator-
 --registry-olm ${LOCAL_REGISTRY} \
 --registry-catalog ${LOCAL_REGISTRY} \
 --operator-file ${OPERATOR_FILE}
+
+# need to copy some asst images
+LOCAL_REGISTRY='bastion.ocp4poc.example.com:5000' && \
+LOCAL_SECRET_JSON='/root/ocp44/pull-secret-with-local.txt' && \
+skopeo copy --all --authfile=${LOCAL_SECRET_JSON} \
+docker://quay.io/noobaa/lib-bucket-catalog@sha256:b9c9431735cf34017b4ecb2b334c3956b2a2322ce31ac88b29b1e4faf6c7fe7d \
+docker://${LOCAL_REGISTRY}/noobaa/lib-bucket-catalog && \
+skopeo copy --all --authfile=${LOCAL_SECRET_JSON} \
+docker://registry.redhat.io/ocs4/ocs-rhel8-operator@sha256:78b97049b194ebf4f72e29ac83b0d4f8aaa5659970691ff459bf19cfd661e93a \
+docker://${LOCAL_REGISTRY}/ocs4/ocs-rhel8-operator && \
+skopeo copy --all --authfile=${LOCAL_SECRET_JSON} \
+docker://quay.io/noobaa/pause@sha256:b31bfb4d0213f254d361e0079deaaebefa4f82ba7aa76ef82e90b4935ad5b105 \
+docker://${LOCAL_REGISTRY}/noobaa/pause && \
+skopeo copy --all --authfile=${LOCAL_SECRET_JSON} \
+docker://registry.redhat.io/openshift4/ose-csi-external-resizer-rhel7@sha256:e7302652fe3f698f8211742d08b2dcea9d77925de458eb30c20789e12ee7ae33 \
+docker://${LOCAL_REGISTRY}/openshift4/ose-csi-external-resizer-rhel7 && \
+skopeo copy --all --authfile=${LOCAL_SECRET_JSON} \
+docker://registry.redhat.io/ocs4/ocs-must-gather-rhel8@sha256:823e0fb90bb272997746eb4923463cef597cc74818cd9050f791b64df4f2c9b2 \
+docker://${LOCAL_REGISTRY}/ocs4/ocs-must-gather-rhel8
 
 oc patch OperatorHub cluster --type json -p \
   '[{"op": "add", "path": "/spec/disableAllDefaultSources", "value": true}]'
@@ -107,30 +129,10 @@ spec:
   installPlanApproval: Automatic
   name: local-storage-operator
   source: redhat-operators
-  sourceNamespace: openshift-marketplace
-  startingCSV: local-storage-operator.4.4.0-202006080610' | oc apply -f -
+  sourceNamespace: openshift-marketplace' | oc apply -f -
 
 # create localstorage cr with ansible playbook
 git clone https://github.com/jfblaine/playbooks.git
-
-# need to copy some asst images
-LOCAL_REGISTRY='bastion.ocp4poc.example.com:5000' && \
-LOCAL_SECRET_JSON='/root/ocp44/pull-secret-with-local.txt' && \
-skopeo copy --all --authfile=${LOCAL_SECRET_JSON} \
-docker://quay.io/noobaa/lib-bucket-catalog@sha256:b9c9431735cf34017b4ecb2b334c3956b2a2322ce31ac88b29b1e4faf6c7fe7d \
-docker://${LOCAL_REGISTRY}/noobaa/lib-bucket-catalog && \
-skopeo copy --all --authfile=${LOCAL_SECRET_JSON} \
-docker://registry.redhat.io/ocs4/ocs-rhel8-operator@sha256:78b97049b194ebf4f72e29ac83b0d4f8aaa5659970691ff459bf19cfd661e93a \
-docker://${LOCAL_REGISTRY}/ocs4/ocs-rhel8-operator && \
-skopeo copy --all --authfile=${LOCAL_SECRET_JSON} \
-docker://quay.io/noobaa/pause@sha256:b31bfb4d0213f254d361e0079deaaebefa4f82ba7aa76ef82e90b4935ad5b105 \
-docker://${LOCAL_REGISTRY}/noobaa/pause && \
-skopeo copy --all --authfile=${LOCAL_SECRET_JSON} \
-docker://registry.redhat.io/openshift4/ose-csi-external-resizer-rhel7@sha256:e7302652fe3f698f8211742d08b2dcea9d77925de458eb30c20789e12ee7ae33 \
-docker://${LOCAL_REGISTRY}/openshift4/ose-csi-external-resizer-rhel7 && \
-skopeo copy --all --authfile=${LOCAL_SECRET_JSON} \
-docker://registry.redhat.io/ocs4/ocs-must-gather-rhel8@sha256:823e0fb90bb272997746eb4923463cef597cc74818cd9050f791b64df4f2c9b2 \
-docker://${LOCAL_REGISTRY}/ocs4/ocs-must-gather-rhel8
 
 ##############################################################################
 
@@ -182,8 +184,7 @@ spec:
   installPlanApproval: Automatic
   name: ocs-operator
   source: redhat-operators
-  sourceNamespace: openshift-marketplace
-  startingCSV: ocs-operator.v4.4.0' | oc apply -f -
+  sourceNamespace: openshift-marketplace' | oc apply -f -
 
 # patch image urls for pause with sha256
 
@@ -233,4 +234,5 @@ oc patch storageclass ocs-storagecluster-cephfs -p '{"metadata": {"annotations":
 # to create a route for registry
 # oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":true}}' --type=merge
 
+# ceph tools
 # oc patch OCSInitialization ocsinit -n openshift-storage --type json --patch  '[{ "op": "replace", "path": "/spec/enableCephTools", "value": true }]'
