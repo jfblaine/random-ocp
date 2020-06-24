@@ -1,23 +1,23 @@
 ### OCP steps
 # https://docs.openshift.com/container-platform/4.4/installing/install_config/installing-restricted-networks-preparations.html
+
 podman run --name mirror-registry -p 5000:5000 \
-     -v /opt/registry/data:/var/lib/registry:z \
-     -v /opt/registry/auth:/auth:z \
-     -e "REGISTRY_AUTH=htpasswd" \
-     -e "REGISTRY_AUTH_HTPASSWD_REALM=Registry Realm" \
-     -e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd \
-     -v /opt/registry/certs:/certs:z \
-     -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/domain.crt \
-     -e REGISTRY_HTTP_TLS_KEY=/certs/domain.key \
-     -e REGISTRY_COMPATIBILITY_SCHEMA1_ENABLED=true \
-     -d docker.io/library/registry:2
+  -v /opt/registry/data:/var/lib/registry:z \
+  -v /opt/registry/auth:/auth:z \
+  -e "REGISTRY_AUTH=htpasswd" \
+  -e "REGISTRY_AUTH_HTPASSWD_REALM=Registry Realm" \
+  -e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd \
+  -v /opt/registry/certs:/certs:z \
+  -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/domain.crt \
+  -e REGISTRY_HTTP_TLS_KEY=/certs/domain.key \
+  -e REGISTRY_COMPATIBILITY_SCHEMA1_ENABLED=true \
+  -d docker.io/library/registry:2
 
 curl -u admin:redhat -k https://bastion.ocp4poc.example.com:5000/v2/_catalog 
-
-[root@bastion certs]# curl -u admin:redhat -k https://bastion.ocp4poc.example.com:5000/v2/_catalog
 {"repositories":[]}
-[root@bastion certs]# echo -n 'admin:redhat' | base64 -w0
-YWRtaW46cmVkaGF0
+
+# echo -n 'admin:redhat' | base64 -w0
+# YWRtaW46cmVkaGF0
 
 export OCP_RELEASE=4.4.6-x86_64 &&\
 export LOCAL_REGISTRY='bastion.ocp4poc.example.com:5000' &&\
@@ -79,7 +79,7 @@ oc patch OperatorHub cluster --type json -p \
   '[{"op": "add", "path": "/spec/disableAllDefaultSources", "value": true}]'
 
 # ADD QUAY.IO to the mirrors in the olm-icsp.yaml
-# this is necessary to cover the noobaa image
+# this is necessary to cover the noobaa images
 
 cat <<EOF >> ./publish/olm-icsp.yaml
   - mirrors:
@@ -129,14 +129,7 @@ spec:
   installPlanApproval: Automatic
   name: local-storage-operator
   source: redhat-operators
-  sourceNamespace: openshift-marketplace' | oc apply -f -
-
-# create localstorage cr with ansible playbook
-git clone https://github.com/jfblaine/playbooks.git
-
-##############################################################################
-
-echo '
+  sourceNamespace: openshift-marketplace
 ---
 apiVersion: operators.coreos.com/v1alpha1
 kind: CatalogSource
@@ -150,7 +143,12 @@ spec:
     mediatype: image/svg+xml
   image: quay.io/noobaa/lib-bucket-catalog@sha256:b9c9431735cf34017b4ecb2b334c3956b2a2322ce31ac88b29b1e4faf6c7fe7d
   publisher: Red Hat
-  sourceType: grpc' | oc apply -f - -n openshift-marketplace
+  sourceType: grpc' | oc apply -f -
+
+# create localstorage cr with ansible playbook
+git clone https://github.com/jfblaine/playbooks.git
+
+##############################################################################
 
 echo '
 ---
@@ -187,12 +185,10 @@ spec:
   sourceNamespace: openshift-marketplace' | oc apply -f -
 
 # patch image urls for pause with sha256
-
-jsonpatch='[{"op":"replace","path":"/spec/install/spec/deployments/0/spec/template/spec/containers/0/image",'
+jsonpatch='[{"op":"replace","path":"/spec/install/spec/deployments/0/spec/template/spec/containers/0/image",' && \
 jsonpatch+='"value":"quay.io/noobaa/pause@sha256:b31bfb4d0213f254d361e0079deaaebefa4f82ba7aa76ef82e90b4935ad5b105"}]' && \
-oc patch csv lib-bucket-provisioner.v1.0.0 --type='json' -p=${jsonpatch}
-
-jsonpatch='[{"op":"replace","path":"/spec/template/spec/containers/0/image",'
+oc patch csv lib-bucket-provisioner.v1.0.0 --type='json' -p=${jsonpatch} && \
+jsonpatch='[{"op":"replace","path":"/spec/template/spec/containers/0/image",' && \
 jsonpatch+='"value":"quay.io/noobaa/pause@sha256:b31bfb4d0213f254d361e0079deaaebefa4f82ba7aa76ef82e90b4935ad5b105"}]' && \
 oc patch deploy lib-bucket-provisioner --type='json' -p=${jsonpatch} -n openshift-storage
 
