@@ -163,3 +163,63 @@ oc label nodes ocs-1.ocp4poc.example.com node-role.kubernetes.io/infra='' &&\
 oc label nodes ocs-2.ocp4poc.example.com node-role.kubernetes.io/infra=''
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+to remove all default requests and limits:
+
+apiVersion: ocs.openshift.io/v1
+kind: StorageCluster
+metadata:
+  name: ocs-storagecluster
+  namespace: openshift-storage
+spec:
+  manageNodes: false
+  monPVCTemplate:
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+      storageClassName: 'local-sc'
+      volumeMode: Filesystem
+  resources:      
+    mon:      
+      requests: {}
+      limits: {}
+    mds:
+      requests: {}
+      limits: {}
+    rgw:      
+      requests: {}
+      limits: {}
+    mgr:
+      requests: {}
+      limits: {}
+    noobaa-core:      
+      requests: {}
+      limits: {}
+    noobaa-db:        
+      requests: {}
+      limits: {}
+  storageDeviceSets:
+  - count: 1
+    dataPVCTemplate:
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 100Gi
+        storageClassName: 'localblock-sc'
+        volumeMode: Block
+    name: ocs-deviceset
+    placement: {}
+    portable: true
+    replica: 3
+    resources:
+      requests: {}
+      limits: {}
+
+
+
+
