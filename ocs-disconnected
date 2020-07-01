@@ -241,15 +241,7 @@ metadata:
   namespace: openshift-storage
 spec:
   manageNodes: false
-  monPVCTemplate:
-    spec:
-      accessModes:
-      - ReadWriteOnce
-      resources:
-        requests:
-          storage: 10Gi
-      storageClassName: 'local-sc'
-      volumeMode: Filesystem
+  monDataDirHostPath: /var/lib/rook
   resources:      
     mon:      
       requests: {}
@@ -278,7 +270,7 @@ spec:
         resources:
           requests:
             storage: 100Gi
-        storageClassName: 'localblock-sc'
+        storageClassName: 'localblock'
         volumeMode: Block
     name: ocs-deviceset
     placement: {}
