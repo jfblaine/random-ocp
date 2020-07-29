@@ -1,0 +1,16 @@
+#!/usr/bin/python3
+import sys, json, base64
+
+file_list = json.load(sys.stdin)['storage']['files']
+
+for files in file_list:
+  print (files['path'] + "\n" + base64.b64decode(files['contents']['source'].split(',')[1]).decode('ascii'))
+  
+  
+#!/usr/bin/python
+import sys, json, base64
+
+file_list = json.load(sys.stdin)['storage']['files']
+
+for files in file_list:
+  print files['path'] + "\n" + base64.b64decode(files['contents']['source'].split(',')[1])
