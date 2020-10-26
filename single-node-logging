@@ -44,7 +44,7 @@ spec:
         requests:
           cpu: 100m
           memory: 100Mi
-      schedule: "*/5 * * * *"
+      schedule: "0 */12 * * *"
   collection:
     logs:
       type: "fluentd"
@@ -55,3 +55,12 @@ spec:
           requests:
             cpu: 100m
             memory: 250Mi' | oc apply -f -
+
+
+# to use emptyDir:
+ spec:
+    logStore:
+      type: "elasticsearch"
+      elasticsearch:
+        nodeCount: 3
+        storage: {}
